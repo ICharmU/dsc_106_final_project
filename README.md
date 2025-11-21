@@ -1,2 +1,1 @@
-# dsc_106_final_project
-DSC 106 Final Project Hosting
+You can find our visual article [here](https://icharmu.github.io/dsc_106_final_project/)
