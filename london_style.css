@@ -1,0 +1,111 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 30px;
+}
+
+/* Single map container with all datasets */
+.map-container {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #fafafa;
+  margin: 25px 0;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.map-container h2 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 25px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e0e0e0;
+  text-align: center;
+}
+
+.dataset-section {
+  margin-bottom: 30px;
+  padding: 15px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background-color: #ffffff;
+}
+
+.dataset-section:last-child {
+  margin-bottom: 0;
+}
+
+.dataset-section h3 {
+  color: #444;
+  margin-top: 0;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ddd;
+  font-size: 18px;
+}
+
+#map-landcover, #map-lst, #map-ndvi {
+  width: 100%;
+  min-height: 400px;
+  border-radius: 4px;
+}
+
+#combined-svgs {
+  display: flex;
+  flex-direction: row;
+  gap: 15px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#combined-svgs .svg-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px;
+}
+
+#combined-svgs svg {
+  max-height: 250px;
+  max-width: 350px;
+  object-fit: contain;
+}
+
+#combined-svgs .svg-label {
+  text-align: center;
+  font-weight: bold;
+  color: #444;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+
+
+/* Tooltip styling */
+.tooltip {
+  font-family: Arial, sans-serif;
+  line-height: 1.4;
+}
+
+/* SVG container styling */
+svg {
+  display: block;
+  margin: 0 auto;
+}
