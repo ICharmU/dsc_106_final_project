@@ -7,11 +7,18 @@
 
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="london_style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
-  <script type="module" src="heat_inequality.js" defer></script> 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+  <!-- Scripts -->
+  <script src="scripts/london/boroughs.js" defer></script>
+  <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
+  <script src="scripts/lstMap.js"></script>
+  <script src="scripts/ndviMap.js"></script>
+  <script src="scripts/compare.js"></script>
 </head>
 <body>
   <header>
@@ -25,6 +32,7 @@
       <p>Small differences in greenness and land cover create big differences in how cities cool at night.</p>
     </div>
     <div class="viz" id="hookViz"></div>
+    <div class="viz" id="boroughPlot"></div>
   </section>
 
   
@@ -82,9 +90,7 @@
   </section>
 
   
-  <script src="scripts/lstMap.js"></script>
-  <script src="scripts/ndviMap.js"></script>
-  <script src="scripts/compare.js"></script>
+
 
 </body>
   

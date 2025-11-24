@@ -598,7 +598,7 @@ function renderIndependentSVGsInOrder(combinedContainer) {
   similar, but if you look closely the Vegetation plot can show the other
   side of this trend with lower temperatures. The plots are complementary.
   ]
-  
+  I also need to confirm that the LST is day time and not night time.
   `;
   combinedContainer.appendChild(textElement);
 }
