@@ -3,23 +3,79 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DSC 106 Final Project</title>
-  <!-- London -->
+  <title>Why Some Neighborhoods Sleep Hotter</title>
+
+  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="london_style.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
   <script type="module" src="heat_inequality.js" defer></script> 
 
 </head>
 <body>
-  <div class="container">
-    <div class="map-container">
-      <h2>Heat Inequality - London, UK (click map to zoom)</h2>
-      <div id="combined-svgs">
-        <!-- SVGs will be cloned here by JavaScript -->
-      </div>
+  <header>
+    <h1>Why Some Neighborhoods Sleep Hotter</h1>
+  </header>
+
+  <section id="hook">
+    <div class="text">
+      <h2>The temperature in your neighborhood isn’t random.</h2>
+      <p>Small differences in greenness and land cover create big differences in how cities cool at night.</p>
     </div>
+    <div class="viz" id="hookViz"></div>
+  </section>
 
-  </div>
+  <!-- Spatial Heat Inequality -->
+  <section id="heat">
+    <h2>How heat is distributed across the city</h2>
+    <p class="subtle">Daytime vs nighttime temperatures</p>
+    <!-- <div class="viz" id="lstMap"></div> -->
+    <div class="container">
+      <div class="map-container">
+        <h2>Heat Inequality - London, UK (click map to zoom)</h2>
+        <div id="combined-svgs">
+          <!-- SVGs will be cloned here by JavaScript -->
+        </div>
+      </div>
+    
+    </div>
+  </section>
 
-  <!-- Main visualization script -->
+  <!-- Spatial Greenness Inequality -->
+  <section id="greenness">
+    <h2>Where vegetation lives — and where it doesn’t</h2>
+    <div class="viz" id="ndviMap"></div>
+  </section> 
+  
+  <!-- Greenness vs Heat -->
+  <section id="greenness_v_heat">
+    <h2>Vegetation distribution's effect on temperature</h2>
+    <div class="viz" id="ndvi_heatMap"></div>
+  </section> 
+  
+  <!-- Land Cover Type vs Greenness vs Heat -->
+  <section id="cover_v_greenness_v_heat">
+    <h2>Land cover type and Vegetation distribution's effect on temperature</h2>
+    <div class="viz" id="lctMap"></div>
+  </section> 
+  
+  <!-- Intra-city comparisons -->
+  <section id="intraCityCompare">
+    <h2>How neighborhoods compare</h2>
+    <div class="viz" id="wardCompare"></div>
+  </section> 
+  
+  <!-- Inter-city comparisons -->
+  <section id="cityCompare">
+    <h2>How cities compare</h2>
+    <div class="viz" id="cityCompare"></div>
+  </section>
+
+  <script src="scripts/lstMap.js"></script>
+  <script src="scripts/ndviMap.js"></script>
+  <script src="scripts/compare.js"></script>
+
 </body>
+  
 </html>

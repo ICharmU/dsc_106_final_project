@@ -1,0 +1,53 @@
+{
+  "city": "Tokyo",
+  "crs": "EPSG:4326",
+  // overall bounding box of all wards
+  "bbox": [139.3, 35.4, 140.2, 36.2],   // [minLon, minLat, maxLon, maxLat]
+  "num_wards": 23,
+  "wards": [
+    {
+      "id": 1,                      // stable numeric ward id
+      "name": "Chiyoda",            // human-readable name
+      "code": "chiyoda",            // slug / short code (optional)
+
+      "centroid": {                 // ward centroid (for map plotting)
+        "lon": 139.753,
+        "lat": 35.693
+      },
+
+      "bbox": [                     // ward bounding box
+        139.73, 35.68,              // minLon, minLat
+        139.77, 35.71               // maxLon, maxLat
+      ],
+
+      "pixel_count": 123,           // number of MODIS pixels inside ward
+
+      // NDVI
+      "ndvi_min": 0.12,
+      "ndvi_q1": 0.21,
+      "ndvi_median": 0.29,
+      "ndvi_q3": 0.35,
+      "ndvi_max": 0.49,
+      "ndvi_mean": 0.27,
+      "ndvi_std": 0.05,
+
+      // Daytime LST (°C)
+      "lst_day_min": 23.1,
+      "lst_day_q1": 25.0,
+      "lst_day_median": 26.4,
+      "lst_day_q3": 27.8,
+      "lst_day_max": 30.2,
+      "lst_day_mean": 26.7,
+      "lst_day_std": 1.2,
+
+      // Nighttime LST (°C)
+      "lst_night_min": 18.0,
+      "lst_night_q1": 19.5,
+      "lst_night_median": 20.2,
+      "lst_night_q3": 21.1,
+      "lst_night_max": 23.4,
+      "lst_night_mean": 20.3,
+      "lst_night_std": 0.9
+    }
+  ]
+}
