@@ -14,7 +14,7 @@ class LondonBoroughsMap {
     async init() {
         try {
             // Initialize the map
-            this.map = L.map('hookViz', {
+            this.map = L.map('londonViz', {
                 center: [51.5074, -0.1278], // London center
                 zoom: 10,
                 zoomControl: true,
@@ -991,7 +991,7 @@ style.textContent = `
     .leaflet-overlay-pane svg {
         z-index: 200 !important;
     }
-    #hookViz {
+    #londonViz {
         height: 400px;
         width: 100%;
         border-radius: 8px;

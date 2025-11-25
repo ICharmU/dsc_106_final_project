@@ -16,9 +16,9 @@
   <!-- Scripts -->
   <script src="scripts/london/boroughs.js" defer></script>
   <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
-  <script src="scripts/lstMap.js"></script>
-  <script src="scripts/ndviMap.js"></script>
-  <script src="scripts/compare.js"></script>
+  <script type="module" src="scripts/lstMap.js" defer></script>
+  <script type="module" src="scripts/ndviMap.js" defer></script>
+  <script type="module" src="scripts/compare.js" defer></script>
 </head>
 <body>
   <header>
@@ -28,10 +28,14 @@
 
   <section id="hook">
     <div class="text">
-      <h2>The temperature in your neighborhood isn’t random.</h2>
+      <h2>The temperature in your neighborhood isn't random.</h2>
       <p>Small differences in greenness and land cover create big differences in how cities cool at night.</p>
+      <div class="viz" id="hookViz"></div>
     </div>
-    <div class="viz" id="hookViz"></div>
+  </section>
+
+  <section id="boroughs">
+    <div class="viz" id="londonViz"></div>
     <div class="viz" id="boroughPlot"></div>
   </section>
 
