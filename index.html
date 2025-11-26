@@ -16,6 +16,7 @@
   <!-- Scripts -->
   <script src="scripts/london/boroughs.js" defer></script>
   <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
+  <script type="module" src="scripts/london/londonMap.js"></script>
   <script type="module" src="scripts/genericMap.js" defer></script>
   <script type="module" src="scripts/tokyo/compare.js" defer></script>
 </head>
@@ -55,19 +56,31 @@
     </div>
   </section>
   
-  <!-- Spatial Greenness Inequality -->
+  <!-- London Greenness Map -->
+  <section id="london_greenness">
+    <h2>London: Where vegetation lives — and where it doesn't</h2>
+    <div class="viz" id="londonNdviMap"></div>
+  </section>
+  
+  <!-- London Greenness vs Heat -->
+  <section id="london_greenness_v_heat">
+    <h2>London: Vegetation distribution's effect on temperature</h2>
+    <div class="viz" id="londonNdviHeatMap"></div>
+  </section>
+  
+  <!-- Tokyo Spatial Greenness Inequality -->
   <section id="greenness">
-    <h2>Where vegetation lives — and where it doesn’t</h2>
+    <h2>Tokyo: Where vegetation lives — and where it doesn't</h2>
     <div class="viz" id="ndviMap"></div>
   </section> 
   
   </section>
 
-  <!-- Greenness vs Heat -->
+  <!-- Tokyo Greenness vs Heat -->
   <section id="greenness_v_heat">
-    <h2>Vegetation distribution's effect on temperature</h2>
+    <h2>Tokyo: Vegetation distribution's effect on temperature</h2>
     <div class="viz" id="ndvi_heatMap"></div>
-  </section> 
+  </section>
   
   </section>
 

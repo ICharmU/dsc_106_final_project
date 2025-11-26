@@ -291,21 +291,19 @@ function createLSTVisualization(data, width, height, boundingBox, container) {
   const maxTemp = Math.max(...validTemps);
   console.log(`LST range: ${minTemp.toFixed(1)} to ${maxTemp.toFixed(1)}`);
   
-  // Create binned temperature ranges with official colors
-  const tempRange = maxTemp - minTemp;
-  const binSize = tempRange / 10; // Create 10 temperature bins
-  
+  // Use fixed temperature bins for high contrast (similar to D3 interpolateInferno)
+  // These bins create larger jumps in color for better visual distinction
   const lstBins = [
-    { min: minTemp, max: minTemp + binSize * 1, color: '#040274', label: 'Very Cold' },
-    { min: minTemp + binSize * 1, max: minTemp + binSize * 2, color: '#0502a3', label: 'Cold' },
-    { min: minTemp + binSize * 2, max: minTemp + binSize * 3, color: '#0602ff', label: 'Cool' },
-    { min: minTemp + binSize * 3, max: minTemp + binSize * 4, color: '#307ef3', label: 'Mild Cool' },
-    { min: minTemp + binSize * 4, max: minTemp + binSize * 5, color: '#32d3ef', label: 'Moderate' },
-    { min: minTemp + binSize * 5, max: minTemp + binSize * 6, color: '#3be285', label: 'Mild Warm' },
-    { min: minTemp + binSize * 6, max: minTemp + binSize * 7, color: '#b5e22e', label: 'Warm' },
-    { min: minTemp + binSize * 7, max: minTemp + binSize * 8, color: '#fff705', label: 'Hot' },
-    { min: minTemp + binSize * 8, max: minTemp + binSize * 9, color: '#ff8b13', label: 'Very Hot' },
-    { min: minTemp + binSize * 9, max: maxTemp, color: '#ff0000', label: 'Extreme Hot' }
+    { min: -273, max: 0, color: '#000004', label: 'Freezing' },
+    { min: 0, max: 5, color: '#1b0c41', label: 'Very Cold' },
+    { min: 5, max: 10, color: '#4a0c6b', label: 'Cold' },
+    { min: 10, max: 15, color: '#781c6d', label: 'Cool' },
+    { min: 15, max: 20, color: '#a52c60', label: 'Mild' },
+    { min: 20, max: 25, color: '#cd4247', label: 'Warm' },
+    { min: 25, max: 30, color: '#ed6925', label: 'Hot' },
+    { min: 30, max: 35, color: '#fb9b06', label: 'Very Hot' },
+    { min: 35, max: 40, color: '#f7d13d', label: 'Extreme' },
+    { min: 40, max: 100, color: '#fcffa4', label: 'Scorching' }
   ];
   
   // Create function to get color for any temperature value
@@ -361,7 +359,7 @@ function createNDVIVisualization(data, width, height, boundingBox, container) {
   const maxNDVI = Math.max(...data);
   console.log(`NDVI range: ${minNDVI} to ${maxNDVI}`);
   
-  // Create binned NDVI classes based on vegetation interpretation
+  // Use binned NDVI classes matching boroughs.js for consistency
   const ndviBins = [
     { min: -1.0, max: -0.1, color: '#ffffff', label: 'Water/Snow/Clouds' },
     { min: -0.1, max: 0.0, color: '#ce7e45', label: 'Non-vegetated' },
@@ -377,10 +375,8 @@ function createNDVIVisualization(data, width, height, boundingBox, container) {
     { min: 0.9, max: 1.0, color: '#004c00', label: 'Extremely Dense Forest' }
   ];
   
-  // Adjust bins to actual data range
-  const actualBins = ndviBins.filter(bin => 
-    (bin.max >= minNDVI && bin.min <= maxNDVI)
-  );
+  // Use all bins (no filtering based on data range for consistency)
+  const actualBins = ndviBins;
   
   // Create function to get color for any NDVI value
   function getNDVIColor(value) {
@@ -390,16 +386,19 @@ function createNDVIVisualization(data, width, height, boundingBox, container) {
     
     // Find which bin this NDVI value falls into
     for (let i = 0; i < actualBins.length; i++) {
-      if (value >= actualBins[i].min && (i === actualBins.length - 1 ? value <= actualBins[i].max : value < actualBins[i].max)) {
+      if (value >= actualBins[i].min && value < actualBins[i].max) {
         return actualBins[i].color;
       }
     }
     
-    // Fallback for out-of-range values
-    if (actualBins.length > 0) {
-      if (value < actualBins[0].min) return actualBins[0].color;
-      if (value > actualBins[actualBins.length - 1].max) return actualBins[actualBins.length - 1].color;
+    // Handle edge case: value exactly equals max of last bin
+    if (value === actualBins[actualBins.length - 1].max) {
+      return actualBins[actualBins.length - 1].color;
     }
+    
+    // Fallback for out-of-range values
+    if (value < actualBins[0].min) return actualBins[0].color;
+    if (value > actualBins[actualBins.length - 1].max) return actualBins[actualBins.length - 1].color;
     
     return '#808080'; // Gray for out-of-range values
   }
