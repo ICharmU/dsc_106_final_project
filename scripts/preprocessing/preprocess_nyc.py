@@ -2,6 +2,7 @@ import json
 import numpy as np
 import tifffile
 import imagecodecs
+import shapely
 from shapely.geometry import shape, Point
 
 NDVI_TIF = "data/nyc/nyc_NDVI.tif"
@@ -103,7 +104,7 @@ with open(NYC_JSON, "r", encoding="utf-8") as f:
     gj = json.load(f)
 
 features = gj["features"]
-geoms = [shape(feat["geometry"]) for feat in features]
+geoms = [shapely.make_valid(shape(feat["geometry"])) for feat in features]
 
 borough_ids = np.zeros((H, W), dtype="int32")
 borough_names = {}
