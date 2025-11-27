@@ -1,85 +1,97 @@
+// Simple ward comparison panel linked to the generic grid map.
+// - City toggles (Tokyo / London)
+// - One metric per feature (NDVI / LST)
+// - Reacts to gridLayerChanged + wardHover events from genericMap.js
+
 // -------------------------------------------------------------
-// City configs – add more cities here later
+// City configs – extend later if needed
 // -------------------------------------------------------------
 const CITY_COMPARE_CONFIGS = [
   {
     id: "tokyo",
     name: "Tokyo",
     wardStatsPath: "data/tokyo/tokyo_wards.json"
+  },
+  {
+    id: "london",
+    name: "London",
+    wardStatsPath: "data/london/london_boroughs.json"
   }
 ];
 
-// Human-friendly labels for known metrics (fallback = raw key)
-const METRIC_LABELS = {
-  pixel_count: "Pixel count (area proxy)",
-
-  ndvi_min: "NDVI min",
-  ndvi_q1: "NDVI 25th percentile",
-  ndvi_median: "NDVI median",
-  ndvi_q3: "NDVI 75th percentile",
-  ndvi_max: "NDVI max",
-  ndvi_mean: "NDVI mean",
-  ndvi_std: "NDVI std dev",
-
-  lst_day_min: "Daytime LST min (°C)",
-  lst_day_q1: "Daytime LST 25th percentile (°C)",
-  lst_day_median: "Daytime LST median (°C)",
-  lst_day_q3: "Daytime LST 75th percentile (°C)",
-  lst_day_max: "Daytime LST max (°C)",
-  lst_day_mean: "Daytime LST mean (°C)",
-  lst_day_std: "Daytime LST std dev (°C)",
-
-  lst_night_min: "Nighttime LST min (°C)",
-  lst_night_q1: "Nighttime LST 25th percentile (°C)",
-  lst_night_median: "Nighttime LST median (°C)",
-  lst_night_q3: "Nighttime LST 75th percentile (°C)",
-  lst_night_max: "Nighttime LST max (°C)",
-  lst_night_mean: "Nighttime LST mean (°C)",
-  lst_night_std: "Nighttime LST std dev (°C)"
+// -------------------------------------------------------------
+// For each map layer, define *one* ward-level metric to show
+// -------------------------------------------------------------
+const LAYER_METRICS = {
+  ndvi: {
+    metricKey: "ndvi_mean",
+    label: "Ward-average greenness (NDVI)"
+  },
+  lst_night: {
+    metricKey: "lst_night_mean",
+    label: "Ward-average nighttime land surface temperature (°C)"
+  },
+  lst_day: {
+    metricKey: "lst_day_mean",
+    label: "Ward-average daytime land surface temperature (°C)"
+  }
 };
 
-function metricLabel(key) {
-  return METRIC_LABELS[key] || key;
+// -------------------------------------------------------------
+// Global-ish state for the ward comparison view
+// -------------------------------------------------------------
+const wardsByCity = new Map();  // cityId -> wards[]
+let activeCityId = "tokyo";
+
+let activeMetricKey = LAYER_METRICS.ndvi.metricKey;
+let activeMetricLabel = LAYER_METRICS.ndvi.label;
+
+let barSvg = null;
+let barsSelection = null;
+let featureLabelSpan = null;
+let barTooltip = null;
+let barHighlightId = null;
+
+// -------------------------------------------------------------
+// Helpers
+// -------------------------------------------------------------
+function cityIdFromName(name) {
+  const s = (name || "").toLowerCase();
+  if (s.includes("tokyo")) return "tokyo";
+  if (s.includes("london")) return "london";
+  return null;
+}
+
+function getCityConfig(id) {
+  return CITY_COMPARE_CONFIGS.find(c => c.id === id);
+}
+
+function updateMetricFromLayer(layerId) {
+  const info = LAYER_METRICS[layerId];
+  if (!info) return;  // unknown layer -> ignore
+
+  activeMetricKey = info.metricKey;
+  activeMetricLabel = info.label;
+
+  if (featureLabelSpan) {
+    featureLabelSpan.text(activeMetricLabel);
+  }
+}
+
+function highlightBar(wardId) {
+  barHighlightId = wardId;
+  if (!barsSelection) return;
+
+  barsSelection
+    .attr("stroke-width", d => (wardId && d.id === wardId) ? 2 : 0.5)
+    .attr("stroke", d => (wardId && d.id === wardId) ? "#000" : "#333")
+    .attr("opacity", d => (wardId && d.id !== wardId) ? 0.35 : 0.9);
 }
 
 // -------------------------------------------------------------
-// Main entry
+// Build static shell: controls + SVG container
 // -------------------------------------------------------------
-(async function initWardCompare() {
-  const cityConfig = CITY_COMPARE_CONFIGS[0]; // for now: Tokyo only
-  if (!cityConfig) return;
-
-  const wardResp = await fetch(cityConfig.wardStatsPath);
-  const wardJson = await wardResp.json();
-
-  const wards = wardJson.wards || [];
-  if (!wards.length) return;
-
-  // Infer metric keys: all numeric fields (except id) from the first ward
-  const sample = wards[0];
-  const numericKeys = Object.keys(sample)
-    .filter(k => typeof sample[k] === "number" && k !== "id");
-
-  // Recommended defaults: greenness vs nighttime heat
-  const defaultX = "ndvi_mean";
-  const defaultY = "lst_night_mean";
-
-  const xMetricDefault = numericKeys.includes(defaultX) ? defaultX : numericKeys[0];
-  const yMetricDefault = numericKeys.includes(defaultY) ? defaultY : numericKeys[1] || numericKeys[0];
-
-  buildWardCompareUI({
-    cityName: wardJson.city || cityConfig.name,
-    wards,
-    metricKeys: numericKeys,
-    xMetricDefault,
-    yMetricDefault
-  });
-})().catch(err => console.error("Error initializing wardCompare:", err));
-
-// -------------------------------------------------------------
-// UI + visualization
-// -------------------------------------------------------------
-function buildWardCompareUI({ cityName, wards, metricKeys, xMetricDefault, yMetricDefault }) {
+function buildWardCompareShell() {
   const container = d3.select("#wardCompare");
   container.selectAll("*").remove();
 
@@ -87,71 +99,57 @@ function buildWardCompareUI({ cityName, wards, metricKeys, xMetricDefault, yMetr
   const width = node.clientWidth;
   const height = node.clientHeight;
 
-  // ---- 1. Layout: controls + two SVGs side by side ----
   const controls = container.append("div")
-    .attr("class", "ward-compare-controls")
+    .attr("class", "ward-compare-simple-controls")
     .style("display", "flex")
-    .style("gap", "12px")
-    .style("align-items", "center")
+    .style("align-items", "baseline")
+    .style("gap", "16px")
     .style("margin-bottom", "8px")
     .style("font-size", "13px");
 
-  controls.append("span").text("Compare wards by:");
+  // ---- City toggle buttons ----
+  const cityCtrl = controls.append("div");
+  cityCtrl.append("span").text("City: ");
 
-  const xSelect = controls.append("label")
-    .text("X: ")
-    .append("select");
+  const cityButtons = cityCtrl.selectAll("button")
+    .data(CITY_COMPARE_CONFIGS, d => d.id)
+    .enter()
+    .append("button")
+    .text(d => d.name)
+    .style("border", "1px solid #ccc")
+    .style("padding", "2px 6px")
+    .style("border-radius", "3px")
+    .style("cursor", "pointer");
 
-  const ySelect = controls.append("label")
-    .style("margin-left", "8px")
-    .text("Y: ")
-    .append("select");
+  function updateCityButtonStyles() {
+    cityButtons
+      .style("background", d => d.id === activeCityId ? "#333" : "#fff")
+      .style("color", d => d.id === activeCityId ? "#fff" : "#333");
+  }
 
-  // color metric: by default, same as Y
-  const colorSelect = controls.append("label")
-    .style("margin-left", "8px")
-    .text("Color: ")
-    .append("select");
-
-  metricKeys.forEach(k => {
-    xSelect.append("option")
-      .attr("value", k)
-      .text(metricLabel(k));
-
-    ySelect.append("option")
-      .attr("value", k)
-      .text(metricLabel(k));
-
-    colorSelect.append("option")
-      .attr("value", k)
-      .text(metricLabel(k));
+  cityButtons.on("click", (event, d) => {
+    if (d.id === activeCityId) return;
+    activeCityId = d.id;
+    updateCityButtonStyles();
+    updateChart();
   });
 
-  xSelect.property("value", xMetricDefault);
-  ySelect.property("value", yMetricDefault);
-  colorSelect.property("value", yMetricDefault);
+  updateCityButtonStyles();
 
-  const wrapper = container.append("div")
-    .attr("class", "ward-compare-wrapper")
-    .style("display", "flex")
-    .style("gap", "16px")
-    .style("height", (height - 40) + "px");
+  // ---- Feature label ----
+  const featCtrl = controls.append("div");
+  featCtrl.append("span").text("Comparing neighborhoods by: ");
 
-  const scatterWidth = width * 0.65;
-  const mapWidth = width * 0.35;
+  featureLabelSpan = featCtrl.append("span")
+    .attr("class", "ward-feature-label")
+    .style("font-weight", "600");
 
-  const scatterSvg = wrapper.append("svg")
-    .attr("width", scatterWidth)
-    .attr("height", height - 40);
+  featureLabelSpan.text(activeMetricLabel);
 
-  const mapSvg = wrapper.append("svg")
-    .attr("width", mapWidth)
-    .attr("height", height - 40);
-
-  // Shared tooltip
-  const tooltip = d3.select("body")
+  // ---- Tooltip (shared) ----
+  barTooltip = d3.select("body")
     .append("div")
-    .attr("class", "ward-compare-tooltip")
+    .attr("class", "ward-compare-tooltip-simple")
     .style("position", "absolute")
     .style("pointer-events", "none")
     .style("background", "rgba(0,0,0,0.8)")
@@ -161,279 +159,177 @@ function buildWardCompareUI({ cityName, wards, metricKeys, xMetricDefault, yMetr
     .style("font-size", "12px")
     .style("opacity", 0);
 
-  // Precompute map bounds from ward bboxes
-  const lonMin = d3.min(wards, w => w.bbox[0]);
-  const latMin = d3.min(wards, w => w.bbox[1]);
-  const lonMax = d3.max(wards, w => w.bbox[2]);
-  const latMax = d3.max(wards, w => w.bbox[3]);
-
-  function update() {
-    const xKey = xSelect.property("value");
-    const yKey = ySelect.property("value");
-    const cKey = colorSelect.property("value");
-
-    drawScatter({
-      svg: scatterSvg,
-      cityName,
-      wards,
-      xKey,
-      yKey,
-      cKey,
-      tooltip
-    });
-
-    drawWardMap({
-      svg: mapSvg,
-      cityName,
-      wards,
-      lonMin,
-      lonMax,
-      latMin,
-      latMax,
-      colorKey: cKey,
-      tooltip
-    });
-  }
-
-  xSelect.on("change", update);
-  ySelect.on("change", update);
-  colorSelect.on("change", update);
-
-  update(); // initial render
+  // ---- SVG for the bar chart ----
+  const svgHeight = height - 40;
+  barSvg = container.append("svg")
+    .attr("width", width)
+    .attr("height", svgHeight);
 }
 
 // -------------------------------------------------------------
-// Scatterplot: ward-level metric X vs metric Y
+// Core: draw or redraw the bar chart
 // -------------------------------------------------------------
-function drawScatter({ svg, cityName, wards, xKey, yKey, cKey, tooltip }) {
-  svg.selectAll("*").remove();
+function updateChart() {
+  if (!barSvg) return;
 
-  const width = +svg.attr("width");
-  const height = +svg.attr("height");
+  const wards = wardsByCity.get(activeCityId) || [];
+  const metricKey = activeMetricKey;
 
-  const margin = { top: 30, right: 20, bottom: 50, left: 60 };
+  const data = wards.filter(w => Number.isFinite(w[metricKey]));
+  if (!data.length) {
+    barSvg.selectAll("*").remove();
+    return;
+  }
+
+  const width = +barSvg.attr("width");
+  const height = +barSvg.attr("height");
+
+  const margin = { top: 30, right: 20, bottom: 30, left: 130 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
-  const g = svg.append("g")
+  barSvg.selectAll("*").remove();
+
+  const g = barSvg.append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // Filter wards with finite values
-  const data = wards.filter(w =>
-    Number.isFinite(w[xKey]) && Number.isFinite(w[yKey]) && Number.isFinite(w[cKey])
-  );
+  // Sort wards by metric (descending)
+  const sorted = data.slice().sort((a, b) => b[metricKey] - a[metricKey]);
+
+  const y = d3.scaleBand()
+    .domain(sorted.map(d => d.name || ("Ward " + d.id)))
+    .range([0, innerH])
+    .padding(0.15);
 
   const x = d3.scaleLinear()
-    .domain(d3.extent(data, d => d[xKey])).nice()
+    .domain(d3.extent(sorted, d => d[metricKey])).nice()
     .range([0, innerW]);
 
-  const y = d3.scaleLinear()
-    .domain(d3.extent(data, d => d[yKey])).nice()
-    .range([innerH, 0]);
-
   const color = d3.scaleSequential(d3.interpolateTurbo)
-    .domain(d3.extent(data, d => d[cKey]));
+    .domain(d3.extent(sorted, d => d[metricKey]));
 
-  const rScale = d3.scaleSqrt()
-    .domain(d3.extent(data, d => d.pixel_count || 1))
-    .range([3, 9]);
-
+  // Axes
   g.append("g")
+    .attr("class", "x-axis")
     .attr("transform", `translate(0,${innerH})`)
-    .call(d3.axisBottom(x).ticks(5));
+    .call(d3.axisBottom(x).ticks(4));
 
   g.append("g")
-    .call(d3.axisLeft(y).ticks(5));
+    .attr("class", "y-axis")
+    .call(d3.axisLeft(y).tickSize(0))
+    .selectAll("text")
+    .style("font-size", 10);
 
-  g.append("text")
-    .attr("x", innerW / 2)
-    .attr("y", innerH + 40)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 11)
-    .text(metricLabel(xKey));
-
-  g.append("text")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -innerH / 2)
-    .attr("y", -45)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 11)
-    .text(metricLabel(yKey));
-
-  svg.append("text")
-    .attr("x", width / 2)
-    .attr("y", 18)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 13)
-    .text(`${cityName}: ward-level ${metricLabel(xKey)} vs ${metricLabel(yKey)}`);
-
-  const points = g.selectAll("circle")
-    .data(data, d => d.id)
-    .join("circle")
-    .attr("cx", d => x(d[xKey]))
-    .attr("cy", d => y(d[yKey]))
-    .attr("r", d => rScale(d.pixel_count || 1))
-    .attr("fill", d => color(d[cKey]))
-    .attr("fill-opacity", 0.9)
+  // Bars
+  barsSelection = g.selectAll("rect")
+    .data(sorted, d => d.id)
+    .join("rect")
+    .attr("x", 0)
+    .attr("y", d => y(d.name || ("Ward " + d.id)))
+    .attr("height", y.bandwidth())
+    .attr("width", d => x(d[metricKey]))
+    .attr("fill", d => color(d[metricKey]))
     .attr("stroke", "#333")
-    .attr("stroke-width", 0.6);
+    .attr("stroke-width", 0.5)
+    .attr("opacity", 0.9);
 
-  function setHighlight(id) {
-    points
-      .attr("stroke-width", d => d.id === id ? 2 : 0.6)
-      .attr("stroke", d => d.id === id ? "#000" : "#333");
-  }
+  const cityConfig = getCityConfig(activeCityId);
 
-  points
-    .on("mouseenter", (event, d) => {
-      setHighlight(d.id);
-
-      tooltip
-        .style("opacity", 1)
-        .html(
-          `<strong>${d.name || ("Ward " + d.id)}</strong><br>` +
-          `${metricLabel(xKey)}: ${d[xKey].toFixed(2)}<br>` +
-          `${metricLabel(yKey)}: ${d[yKey].toFixed(2)}<br>` +
-          `${metricLabel(cKey)} (color): ${d[cKey].toFixed(2)}`
-        );
-
-      tooltip
-        .style("left", (event.pageX + 12) + "px")
-        .style("top", (event.pageY - 28) + "px");
-
-      // Broadcast wardHover so the map / NDVI view can respond
-      document.dispatchEvent(new CustomEvent("wardHover", {
-        detail: {
-          city: cityName,
-          wardId: d.id,
-          ward: d
-        }
-      }));
-    })
-    .on("mousemove", (event) => {
-      tooltip
-        .style("left", (event.pageX + 12) + "px")
-        .style("top", (event.pageY - 28) + "px");
-    })
-    .on("mouseleave", () => {
-      setHighlight(null);
-      tooltip.style("opacity", 0);
-
-      document.dispatchEvent(new CustomEvent("wardHover", {
-        detail: {
-          city: cityName,
-          wardId: null,
-          ward: null
-        }
-      }));
-    });
-}
-
-// -------------------------------------------------------------
-// Mini "map": ward centroids colored by a metric
-// -------------------------------------------------------------
-function drawWardMap({ svg, cityName, wards, lonMin, lonMax, latMin, latMax, colorKey, tooltip }) {
-  svg.selectAll("*").remove();
-
-  const width = +svg.attr("width");
-  const height = +svg.attr("height");
-
-  const margin = { top: 30, right: 20, bottom: 30, left: 40 };
-  const innerW = width - margin.left - margin.right;
-  const innerH = height - margin.top - margin.bottom;
-
-  const g = svg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
-
-  const x = d3.scaleLinear()
-    .domain([lonMin, lonMax])
-    .range([0, innerW]);
-
-  const y = d3.scaleLinear()
-    .domain([latMin, latMax])
-    .range([innerH, 0]); // lat increases upwards
-
-  const data = wards.filter(w =>
-    w.centroid && Number.isFinite(w.centroid.lon) &&
-    Number.isFinite(w.centroid.lat) &&
-    Number.isFinite(w[colorKey])
-  );
-
-  const color = d3.scaleSequential(d3.interpolateTurbo)
-    .domain(d3.extent(data, d => d[colorKey]));
-
-  const r = 5;
-
-  svg.append("text")
+  // Title
+  barSvg.append("text")
     .attr("x", width / 2)
     .attr("y", 18)
     .attr("text-anchor", "middle")
     .attr("font-size", 13)
-    .text(`${cityName}: wards colored by ${metricLabel(colorKey)}`);
+    .text(
+      `${cityConfig ? cityConfig.name : activeCityId}: ` +
+      `neighborhoods by ${activeMetricLabel}`
+    );
 
-  const circles = g.selectAll("circle")
-    .data(data, d => d.id)
-    .join("circle")
-    .attr("cx", d => x(d.centroid.lon))
-    .attr("cy", d => y(d.centroid.lat))
-    .attr("r", r)
-    .attr("fill", d => color(d[colorKey]))
-    .attr("stroke", "#222")
-    .attr("stroke-width", 0.7)
-    .attr("fill-opacity", 0.9);
-
-  function setHighlight(id) {
-    circles
-      .attr("stroke-width", d => d.id === id ? 2 : 0.7)
-      .attr("stroke", d => d.id === id ? "#000" : "#222");
-  }
-
-  circles
+  // Interaction: hover bars -> tooltip + broadcast wardHover
+  barsSelection
     .on("mouseenter", (event, d) => {
-      setHighlight(d.id);
+      highlightBar(d.id);
 
-      tooltip
+      barTooltip
         .style("opacity", 1)
         .html(
           `<strong>${d.name || ("Ward " + d.id)}</strong><br>` +
-          `${metricLabel(colorKey)}: ${d[colorKey].toFixed(2)}`
+          `${activeMetricLabel}: ${d[metricKey].toFixed(2)}`
         )
         .style("left", (event.pageX + 12) + "px")
         .style("top", (event.pageY - 28) + "px");
 
+      const cfg = getCityConfig(activeCityId);
       document.dispatchEvent(new CustomEvent("wardHover", {
         detail: {
-          city: cityName,
+          city: cfg ? cfg.name : activeCityId,
           wardId: d.id,
           ward: d
         }
       }));
     })
     .on("mousemove", (event) => {
-      tooltip
+      barTooltip
         .style("left", (event.pageX + 12) + "px")
         .style("top", (event.pageY - 28) + "px");
     })
     .on("mouseleave", () => {
-      setHighlight(null);
-      tooltip.style("opacity", 0);
+      highlightBar(null);
+      barTooltip.style("opacity", 0);
 
+      const cfg = getCityConfig(activeCityId);
       document.dispatchEvent(new CustomEvent("wardHover", {
         detail: {
-          city: cityName,
+          city: cfg ? cfg.name : activeCityId,
           wardId: null,
           ward: null
         }
       }));
     });
 
-  // simple border box for context
-  g.append("rect")
-    .attr("x", 0)
-    .attr("y", 0)
-    .attr("width", innerW)
-    .attr("height", innerH)
-    .attr("fill", "none")
-    .attr("stroke", "#ccc")
-    .attr("stroke-width", 1);
+  // Re-apply any current highlight (e.g. from map hover)
+  highlightBar(barHighlightId);
 }
+
+// -------------------------------------------------------------
+// Init: load ward stats, build shell, hook into map events
+// -------------------------------------------------------------
+(async function initWardCompareSimple() {
+  // 1) Load ward stats for each city
+  await Promise.all(
+    CITY_COMPARE_CONFIGS.map(async (config) => {
+      const resp = await fetch(config.wardStatsPath);
+      const json = await resp.json();
+      wardsByCity.set(config.id, json.wards || []);
+    })
+  );
+
+  // 2) Build static UI and first chart
+  buildWardCompareShell();
+  updateChart();
+
+  // 3) React to map layer changes (NDVI vs day vs night LST)
+  document.addEventListener("gridLayerChanged", (evt) => {
+    const detail = evt.detail || {};
+    const cityId = cityIdFromName(detail.city);
+    const layerId = detail.layerId;
+
+    if (!cityId || !LAYER_METRICS[layerId]) return;
+
+    // If this is the currently viewed city, update the metric & chart
+    if (cityId === activeCityId) {
+      updateMetricFromLayer(layerId);
+      updateChart();
+    }
+  });
+
+  // 4) React to wardHover events from the map (pixel hover)
+  document.addEventListener("wardHover", (evt) => {
+    const detail = evt.detail || {};
+    const cityId = cityIdFromName(detail.city);
+    if (cityId !== activeCityId) return;
+
+    highlightBar(detail.wardId || null);
+  });
+})().catch(err => console.error("Error initializing simple ward compare:", err));

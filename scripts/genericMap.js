@@ -374,6 +374,15 @@ async function createCityGridMap(config) {
     legendMaxText.text(
       activeLayer.max.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : "")
     );
+
+    // Broadcast layer change so other components (like ward comparison) can react
+    document.dispatchEvent(new CustomEvent("gridLayerChanged", {
+      detail: {
+        city: cityName,
+        layerId: activeLayer.id,
+        layer: activeLayer
+      }
+    }));
   }
 
   updateLayer(false); // initial paint
