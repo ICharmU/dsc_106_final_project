@@ -5,7 +5,7 @@ async function createCityGridMap(config) {
     wardStatsPath = null,
     cityName = "City",
 
-    layers,                // array of layer defs (see below)
+    layers,                // array of layer defs 
     showLayerToggle = true,
     defaultActiveId = null,
 
@@ -451,66 +451,284 @@ async function createCityGridMap(config) {
 }
 
 // ------------------------------------------------------------------
+// Multi-city wrapper: same map component, city toggle on top
+// ------------------------------------------------------------------
+async function createMultiCityGridMap(config) {
+  const {
+    containerId,
+    cityConfigs,           // [{ id, label, gridPath, wardStatsPath, cityName, layers, ... }]
+    defaultCityId = null
+  } = config;
+
+  if (!cityConfigs || !cityConfigs.length) {
+    console.error("createMultiCityGridMap: no cityConfigs provided");
+    return;
+  }
+
+  const container = d3.select(containerId);
+  const node = container.node();
+  const width = node.clientWidth;
+  const height = node.clientHeight;
+
+  // Clear everything in the outer .viz container
+  container.selectAll("*").remove();
+
+  // --- controls row ("City: [Tokyo] [London] ...") ---
+  const controls = container.append("div")
+    .attr("class", "city-toggle-controls")
+    .style("display", "flex")
+    .style("gap", "8px")
+    .style("align-items", "center")
+    .style("margin-bottom", "6px")
+    .style("font-size", "13px");
+
+  controls.append("span").text("City:");
+
+  // Inner div where the actual grid map will live
+  const innerId = containerId.replace("#", "") + "-inner";
+  const innerSelector = "#" + innerId;
+
+  const inner = container.append("div")
+    .attr("id", innerId)
+    .style("position", "relative")
+    .style("width", "100%")
+    .style("height", (height - 40) + "px"); // leave room for controls
+
+  let currentCityId = defaultCityId || cityConfigs[0].id;
+
+  const buttons = controls.selectAll("button")
+    .data(cityConfigs, d => d.id)
+    .enter()
+    .append("button")
+    .text(d => d.label || d.cityName || d.id)
+    .style("border", "1px solid #ccc")
+    .style("padding", "2px 6px")
+    .style("border-radius", "3px")
+    .style("cursor", "pointer");
+
+  function updateButtonStyles() {
+    buttons
+      .style("background", d => d.id === currentCityId ? "#333" : "#fff")
+      .style("color", d => d.id === currentCityId ? "#fff" : "#333");
+  }
+
+  async function renderCurrentCity() {
+    const cityConf = cityConfigs.find(c => c.id === currentCityId);
+    if (!cityConf) return;
+
+    await createCityGridMap({
+      containerId: innerSelector,
+      gridPath: cityConf.gridPath,
+      wardStatsPath: cityConf.wardStatsPath,
+      cityName: cityConf.cityName || cityConf.label || cityConf.id,
+      layers: cityConf.layers,
+      showLayerToggle: cityConf.showLayerToggle ?? true,
+      defaultActiveId: cityConf.defaultActiveId,
+      tooltipFormatter: cityConf.tooltipFormatter,
+      onReady: cityConf.onReady
+    });
+  }
+
+  buttons.on("click", async (event, d) => {
+    if (d.id === currentCityId) return;
+    currentCityId = d.id;
+    updateButtonStyles();
+    await renderCurrentCity();
+  });
+
+  updateButtonStyles();
+  await renderCurrentCity();
+}
+
+// ------------------------------------------------------------------
 // 2.2 Concrete instantiations for Tokyo
 // ------------------------------------------------------------------
 
 // (A) Greenness section: NDVI-only, no toggle
-createCityGridMap({
-  containerId: "#ndviMap",
-  gridPath: "data/tokyo/tokyo_grid.json",
-  wardStatsPath: "data/tokyo/tokyo_wards.json",
-  cityName: "Tokyo",
+// createCityGridMap({
+//   containerId: "#ndviMap",
+//   gridPath: "data/tokyo/tokyo_grid.json",
+//   wardStatsPath: "data/tokyo/tokyo_wards.json",
+//   cityName: "Tokyo",
 
-  layers: [
+//   layers: [
+//     {
+//       id: "ndvi",
+//       valueKey: "ndvi",
+//       minKey: "ndvi_min",
+//       maxKey: "ndvi_max",
+//       label: "NDVI (greenness)",
+//       unit: "",
+//       palette: d3.interpolateYlGn
+//     }
+//   ],
+//   showLayerToggle: false
+// }).catch(err => console.error("Error rendering NDVI map:", err));
+
+// (A) Greenness section: NDVI-only, but toggle between Tokyo & London
+createMultiCityGridMap({
+  containerId: "#ndviMap",
+  defaultCityId: "tokyo",
+  cityConfigs: [
     {
-      id: "ndvi",
-      valueKey: "ndvi",
-      minKey: "ndvi_min",
-      maxKey: "ndvi_max",
-      label: "NDVI (greenness)",
-      unit: "",
-      palette: d3.interpolateYlGn
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        }
+      ],
+      showLayerToggle: false
+    },
+    {
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        }
+      ],
+      showLayerToggle: false
     }
-  ],
-  showLayerToggle: false
-}).catch(err => console.error("Error rendering NDVI map:", err));
+  ]
+}).catch(err => console.error("Error rendering multi-city NDVI map:", err));
 
 // (B) Greenness vs temperature section: NDVI + LST layers with toggle
-createCityGridMap({
-  containerId: "#ndvi_heatMap",
-  gridPath: "data/tokyo/tokyo_grid.json",
-  wardStatsPath: "data/tokyo/tokyo_wards.json",
-  cityName: "Tokyo",
+// createCityGridMap({
+//   containerId: "#ndvi_heatMap",
+//   gridPath: "data/tokyo/tokyo_grid.json",
+//   wardStatsPath: "data/tokyo/tokyo_wards.json",
+//   cityName: "Tokyo",
 
-  layers: [
+//   layers: [
+//     {
+//       id: "ndvi",
+//       valueKey: "ndvi",
+//       minKey: "ndvi_min",
+//       maxKey: "ndvi_max",
+//       label: "NDVI (greenness)",
+//       unit: "",
+//       palette: d3.interpolateYlGn
+//     },
+//     {
+//       id: "lst_day",
+//       valueKey: "lst_day_C",
+//       minKey: "lst_day_min",
+//       maxKey: "lst_day_max",
+//       label: "Daytime LST (°C)",
+//       unit: "°C",
+//       palette: d3.interpolateInferno
+//     },
+//     {
+//       id: "lst_night",
+//       valueKey: "lst_night_C",
+//       minKey: "lst_night_min",
+//       maxKey: "lst_night_max",
+//       label: "Nighttime LST (°C)",
+//       unit: "°C",
+//       palette: d3.interpolateMagma
+//     }
+//   ],
+//   showLayerToggle: true
+//   // You can pass a custom tooltipFormatter here later if you want
+// }).catch(err => console.error("Error rendering NDVI/LST map:", err));
+
+// Multi-city greenness vs temperature map (Tokyo <-> London toggle)
+createMultiCityGridMap({
+  containerId: "#ndvi_heatMap",
+  cityConfigs: [
     {
-      id: "ndvi",
-      valueKey: "ndvi",
-      minKey: "ndvi_min",
-      maxKey: "ndvi_max",
-      label: "NDVI (greenness)",
-      unit: "",
-      palette: d3.interpolateYlGn
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
     },
     {
-      id: "lst_day",
-      valueKey: "lst_day_C",
-      minKey: "lst_day_min",
-      maxKey: "lst_day_max",
-      label: "Daytime LST (°C)",
-      unit: "°C",
-      palette: d3.interpolateInferno
-    },
-    {
-      id: "lst_night",
-      valueKey: "lst_night_C",
-      minKey: "lst_night_min",
-      maxKey: "lst_night_max",
-      label: "Nighttime LST (°C)",
-      unit: "°C",
-      palette: d3.interpolateMagma
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
     }
   ],
-  showLayerToggle: true
-  // You can pass a custom tooltipFormatter here later if you want
-}).catch(err => console.error("Error rendering NDVI/LST map:", err));
+  defaultCityId: "tokyo"
+}).catch(err => console.error("Error rendering multi-city NDVI/LST map:", err));

@@ -1,11 +1,18 @@
 import json
+import os
+import glob
 import numpy as np
 import tifffile
 from shapely.geometry import shape, Point
 
 NDVI_TIF = "data/tokyo/tokyo_NDVI.tif"
 LST_TIF  = "data/tokyo/tokyo_LST.tif"   # exported with LST_Day & LST_Night
-TOKYO23_JSON = "data/tokyo/boundaries/tokyo23.json"
+
+# Old single-GeoJSON source (no longer used for ward shapes)
+# TOKYO23_JSON = "data/tokyo/boundaries/tokyo23.json"
+
+# New directory of ward-specific GeoJSONs
+TOKYO_WARDS_DIR = "data/tokyo_wards"
 
 GRID_OUT   = "data/tokyo/tokyo_grid.json"
 WARDS_OUT  = "data/tokyo/tokyo_wards.json"
@@ -98,36 +105,68 @@ lst_day = lst_day_K - 273.15
 lst_night = lst_night_K - 273.15
 
 
-# 3. Rasterize wards → ward_ids grid
-with open(TOKYO23_JSON, "r", encoding="utf-8") as f:
-    gj = json.load(f)
+# 3. Rasterize wards → ward_ids grid from ward-specific GeoJSONs
 
-features = gj["features"]
-geoms = [shape(feat["geometry"]) for feat in features]
-
-ward_ids = np.zeros((H, W), dtype="int32")
+ward_geoms = []
 ward_names = {}
 ward_codes = {}
 
-for idx, feat in enumerate(features, start=1):
-    props = feat.get("properties", {})
-    name = (
-        props.get("name")
-        or props.get("ward")
-        or props.get("NAME")
-        or props.get("WardName")
-        or f"Ward {idx}"
-    )
-    ward_names[idx] = name
-    ward_codes[idx] = props.get("code") or name
+ward_index = 1
 
-# assign each pixel to a ward by its centre point
+# Load each *.geo.json file as one ward (or a small set of features)
+pattern = os.path.join(TOKYO_WARDS_DIR, "*.geo.json")
+for path in sorted(glob.glob(pattern)):
+    base = os.path.basename(path)
+    # skip obvious temp files if present
+    if base.startswith("temp_"):
+        continue
+
+    with open(path, "r", encoding="utf-8") as f:
+        gj = json.load(f)
+
+    # Handle either FeatureCollection or single Feature
+    if gj.get("type") == "FeatureCollection":
+        feats = gj.get("features", [])
+    elif gj.get("type") == "Feature":
+        feats = [gj]
+    else:
+        continue
+
+    for feat in feats:
+        geom = shape(feat["geometry"])
+        props = feat.get("properties", {}) or {}
+
+        # Try a few common property names, fall back to filename
+        raw_name = (
+            props.get("name")
+            or props.get("NAME")
+            or props.get("ward")
+            or props.get("WardName")
+            or props.get("NAMELATIN")
+            or os.path.splitext(base)[0].replace(".geo", "")
+        )
+
+        # Clean up filename-based names: "adachi-ku" -> "Adachi-Ku"
+        name = raw_name.replace("_", " ").replace("-", " ").title()
+        code = props.get("code") or name
+
+        ward_geoms.append(geom)
+        ward_names[ward_index] = name
+        ward_codes[ward_index] = code
+        ward_index += 1
+
+print(f"Loaded {len(ward_geoms)} ward geometries from {TOKYO_WARDS_DIR}")
+
+# Initialize ward_ids grid
+ward_ids = np.zeros((H, W), dtype="int32")
+
+# Assign each pixel to the ward containing its centre point
 for r in range(H):
     lat = MIN_LAT + (r + 0.5) * (MAX_LAT - MIN_LAT) / H
     for c in range(W):
         lon = MIN_LON + (c + 0.5) * (MAX_LON - MIN_LON) / W
         pt = Point(lon, lat)
-        for i, geom in enumerate(geoms, start=1):
+        for i, geom in enumerate(ward_geoms, start=1):
             if geom.contains(pt):
                 ward_ids[r, c] = i
                 break
@@ -149,9 +188,9 @@ ndvi_grid = ndvi_filled.copy()
 lst_day_grid = lst_day_filled.copy()
 lst_night_grid = lst_night_filled.copy()
 
-ndvi_grid[~inside_mask] = 0.0
-lst_day_grid[~inside_mask] = 0.0
-lst_night_grid[~inside_mask] = 0.0
+# ndvi_grid[~inside_mask] = 0.0
+# lst_day_grid[~inside_mask] = 0.0
+# lst_night_grid[~inside_mask] = 0.0
 
 # global min/max within wards only
 ndvi_min = float(np.min(ndvi_filled[inside_mask]))
