@@ -112,8 +112,8 @@ borough_codes = {}
 
 for idx, feat in enumerate(features, start=1):
     props = feat.get("properties", {})
-    borough_names[idx] = props.get("BoroName")
-    borough_codes[idx] = props.get("BoroCode")
+    borough_names[idx] = props.get("JUR_NAME").lower().title()
+    borough_codes[idx] = props.get("OBJECTID")
 
 # assign each pixel to a ward by its centre point
 for r in range(H):

@@ -16,6 +16,16 @@ const CITY_COMPARE_CONFIGS = [
     id: "london",
     name: "London",
     wardStatsPath: "data/london/london_boroughs.json"
+  },
+  {
+    id: "nyc",
+    name: "New York City",
+    wardStatsPath: "data/nyc/nyc_boroughs.json"
+  },
+  {
+    id: "san-diego",
+    name: "San Diego County",
+    wardStatsPath: "data/san-diego/sandiego_boroughs.json"
   }
 ];
 
@@ -59,6 +69,8 @@ function cityIdFromName(name) {
   const s = (name || "").toLowerCase();
   if (s.includes("tokyo")) return "tokyo";
   if (s.includes("london")) return "london";
+  if (s.includes("new york city")) return "nyc";
+  if (s.includes ("san diego county")) return "san-diego";
   return null;
 }
 

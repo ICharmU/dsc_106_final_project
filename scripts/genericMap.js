@@ -4,6 +4,7 @@ async function createCityGridMap(config) {
     gridPath,
     wardStatsPath = null,
     cityName = "City",
+    subunit,
 
     layers,                // array of layer defs 
     showLayerToggle = true,
@@ -221,10 +222,10 @@ async function createCityGridMap(config) {
     .style("opacity", 0);
 
   // Default tooltip if none provided
-  const defaultTooltipFormatter = ({ pixel, ward, activeLayer, allLayers }) => {
+  const defaultTooltipFormatter = ({ pixel, ward, activeLayer, allLayers, subunit }) => {
     const wardLine = ward
-      ? `Ward: ${ward.name || ("ID " + pixel.wardId)}<br>`
-      : `<span style="opacity:0.7">Outside city wards</span><br>`;
+      ? `${subunit}: ${ward.name || ("ID " + pixel.wardId)}<br>`
+      : `<span style="opacity:0.7">Outside city</span><br>`;
 
     let rows = "";
     allLayers.forEach(layer => {
@@ -399,7 +400,8 @@ async function createCityGridMap(config) {
         pixel: d,
         ward,
         activeLayer,
-        allLayers: layerStates
+        allLayers: layerStates,
+        subunit
       });
 
       tooltip
@@ -530,6 +532,7 @@ async function createMultiCityGridMap(config) {
       gridPath: cityConf.gridPath,
       wardStatsPath: cityConf.wardStatsPath,
       cityName: cityConf.cityName || cityConf.label || cityConf.id,
+      subunit: cityConf.subunit,
       layers: cityConf.layers,
       showLayerToggle: cityConf.showLayerToggle ?? true,
       defaultActiveId: cityConf.defaultActiveId,
@@ -641,11 +644,11 @@ createMultiCityGridMap({
     },
     {
       id: "san-diego",
-      label: "San Diego",
+      label: "San Diego County",
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
-      cityName: "San Diego",
-      subunit: "Borough",
+      cityName: "San Diego County",
+      subunit: "City",
       layers: [
         {
           id: "ndvi",
@@ -788,7 +791,7 @@ createMultiCityGridMap({
       gridPath: "data/nyc/nyc_grid.json",
       wardStatsPath: "data/nyc/nyc_boroughs.json",
       cityName: "New York City",
-      subunit: "Ward",
+      subunit: "Borough",
       layers: [
         {
           id: "ndvi",
@@ -822,11 +825,11 @@ createMultiCityGridMap({
     },
     {
       id: "sandiego",
-      label: "San Diego",
+      label: "San Diego County",
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
-      cityName: "San Diego",
-      subunit: "Ward",
+      cityName: "San Diego County",
+      subunit: "City",
       layers: [
         {
           id: "ndvi",
