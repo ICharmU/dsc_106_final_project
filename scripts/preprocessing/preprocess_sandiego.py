@@ -5,13 +5,13 @@ import imagecodecs
 import shapely
 from shapely.geometry import shape, Point
 
-NDVI_TIF = "data/nyc/nyc_NDVI.tif"
-LST_TIF  = "data/nyc/nyc_LST.tif"   # exported with LST_Day & LST_Night
-NYC_JSON = "data/nyc/boundaries/nyc.json"
-MIN_LON, MIN_LAT, MAX_LON, MAX_LAT = -74.27, 40.49, -73.68, 40.92
+NDVI_TIF = "data/san-diego/sandiego_NDVI.tif"
+LST_TIF  = "data/san-diego/sandiego_LST.tif"   # exported with LST_Day & LST_Night
+NYC_JSON = "data/san-diego/boundaries/Council_Districts.geojson"
+MIN_LON, MIN_LAT, MAX_LON, MAX_LAT = -117.6, 32.53, -116.08, 33.49
 
-GRID_OUT   = "data/nyc/nyc_grid.json"
-BOROUGHS_OUT  = "data/nyc/nyc_boroughs.json"
+GRID_OUT   = "data/san-diego/sandiego_grid.json"
+BOROUGHS_OUT  = "data/san-diego/sandiego_boroughs.json"
 
 def gap_fill(arr, iterations=5, mask=None):
     """
@@ -247,7 +247,7 @@ for wid in unique_boroughs:
 
 
 grid_out = {
-    "city": "New York City",
+    "city": "San Diego",
     "crs": "EPSG:4326",
     "width": int(W),
     "height": int(H),
