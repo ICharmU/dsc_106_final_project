@@ -261,7 +261,10 @@ async function createLondonGridMap(config) {
       .style("position", "absolute")
       .style("left", legendMargin + "px")
       .style("bottom", legendMargin + "px")
-      .style("display", "none"); // Initially hidden
+      .style("display", "none") // Initially hidden
+      .style("background", "#faf9f6")
+      .style("padding", "8px")
+      .style("border-radius", "4px");
 
     const legendDefs = legendSvg.append("defs");
     const gradient = legendDefs.append("linearGradient")

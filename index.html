@@ -7,14 +7,11 @@
 
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="london_style.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- Scripts -->
-  <script src="scripts/london/boroughs.js" defer></script>
   <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
   <!-- <script type="module" src="scripts/london/londonMap.js"></script> -->
   <script type="module" src="scripts/genericMap.js" defer></script>
@@ -35,12 +32,6 @@
     </div>
   </section>
 
-  <section id="boroughs">
-    <div class="viz" id="londonViz"></div>
-    <div class="viz" id="boroughPlot"></div>
-  </section>
-
-  
   <!-- Spatial Heat Inequality -->
   <section id="heat">
     <h2>How heat is distributed across the city</h2>
@@ -53,7 +44,33 @@
           <!-- SVGs will be cloned here by JavaScript -->
         </div>
       </div>
-    
+    </div>
+  </section>
+  
+  <!-- Additional Heat Inequality Map -->
+  <section id="heatInequality">
+    <h2>London Heat Inequality</h2>
+    <div class="container">
+      <div class="map-container">
+        <div class="viz" id="heatInequalityMap"></div>
+        <div style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; display: flex; gap: 20px; align-items: flex-start;">
+          <ul style="flex: 1; margin: 0;">
+            <li>
+              Inner London boroughs have less greenness than outer boroughs.
+            </li>
+            <li>
+              Boroughs containing rivers have less greenness than boroughs without rivers.
+            </li>
+            <li>
+              People vacate during the daytime (lower relative temperatures). People live in places at night (higher relative temperatures).
+            </li>
+          </ul>
+          <div style="width: 300px;">
+            <img src="images/london_boroughs.jpg" alt="London Boroughs" style="width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <p style="text-align: center; margin-top: 8px; font-size: 12px; color: #666; font-style: italic;">Map of London Boroughs</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
   

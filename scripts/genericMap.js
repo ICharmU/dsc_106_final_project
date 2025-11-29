@@ -864,3 +864,127 @@ createMultiCityGridMap({
   ],
   defaultCityId: "tokyo"
 }).catch(err => console.error("Error rendering multi-city NDVI/LST map:", err));
+
+// ------------------------------------------------------------------
+// Heat Inequality Map (customizable baseline)
+// ------------------------------------------------------------------
+createMultiCityGridMap({
+  containerId: "#heatInequalityMap",
+  cityConfigs: [
+    {
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "nyc",
+      label: "New York City",
+      gridPath: "data/nyc/nyc_grid.json",
+      wardStatsPath: "data/nyc/nyc_boroughs.json",
+      cityName: "New York City",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "sandiego",
+      label: "San Diego County",
+      gridPath: "data/san-diego/sandiego_grid.json",
+      wardStatsPath: "data/san-diego/sandiego_boroughs.json",
+      cityName: "San Diego County",
+      subunit: "City",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    }
+  ],
+  defaultCityId: "london"
+}).catch(err => console.error("Error rendering heat inequality map:", err));
