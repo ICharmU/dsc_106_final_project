@@ -6,7 +6,7 @@ import tifffile
 import shapely
 from shapely.geometry import shape, Point
 
-def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT, WARDS_OUT, LAT_LONG):
+def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT, WARDS_OUT, LAT_LONG, ward_prop = "name"):
     """
     Generic preprocessing script
     Parameters:
@@ -22,6 +22,9 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         WARDS_OUT - Output file path for ward level stats file
         LAT_LONG - List in format of [Minimum longitude, minimum latitude, maximum longitude,
                     maximum latitude] for the city
+        ward_prop - If provided, gives the property to access subdivision names in the
+                    .geojson files. Should make sure to double check this because default
+                    checks can return wrong value instead of an error
     """
     
     MIN_LON, MIN_LAT, MAX_LON, MAX_LAT = LAT_LONG;
@@ -198,12 +201,12 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
             for idx, feat in enumerate(features, start=1):
                 props = feat.get("properties", {})
                 name = (
-                    props.get("name")
+                    props.get(ward_prop)
+                    or props.get("name")
                     or props.get("ward")
                     or props.get("NAME")
                     or props.get("WardName")
                     or props.get("BoroName")
-                    or props.get("JUR_NAME")
                     or f"Ward {idx}"
                 )
                 name = name.replace("_", " ").replace("-", " ").title();
@@ -411,7 +414,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
 #NYC_GRID_OUT = "data/nyc/nyc_grid.json"
 #NYC_WARDS_OUT = "data/nyc/nyc_boroughs.json"
 #NYC_LAT_LONG = [-74.27, 40.49, -73.68, 40.92];
-#preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG);
+#preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG, "BoroName");
 
 #SD_NDVI = "data/san-diego/sandiego_NDVI.tif"
 #SD_LST  = "data/san-diego/sandiego_LST.tif"
@@ -420,4 +423,4 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
 #SD_GRID_OUT = "data/san-diego/sandiego_grid.json"
 #SD_WARDS_OUT = "data/san-diego/sandiego_boroughs.json"
 #SD_LAT_LONG = [-117.6, 32.53, -116.08, 33.49];
-#preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG);
+#preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG, "JUR_NAME");
