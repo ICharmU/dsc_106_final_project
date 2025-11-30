@@ -23,7 +23,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         LAT_LONG - List in format of [Minimum longitude, minimum latitude, maximum longitude,
                     maximum latitude] for the city
         ward_prop - If provided, gives the property to access subdivision names in the
-                    .geojson files. Should make sure to double check this because default
+                    .geojson files. Should try to provide this because default
                     checks can return wrong value instead of an error
     """
     
@@ -123,31 +123,9 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
     lst_night = lst_night_K - 273.15
 
     # 1. Load LC (single-band)
-    lc_raw = tifffile.imread(LC_TIF)  # (H,W) or (1,H,W)
-    if lc_raw.ndim == 3:
-        lc_raw = lc_raw[0]
-    lc_map = {
-        0: 'No Data',
-        1: 'Evergreen Needleleaf Forests',
-        2: 'Evergreen Broadleaf Forests',
-        3: 'Deciduous Needleleaf Forests', 
-        4: 'Deciduous Broadleaf Forests',
-        5: 'Mixed Forests',
-        6: 'Closed Shrublands',
-        7: 'Open Shrublands',
-        8: 'Woody Savannas',
-        9: 'Savannas',
-        10: 'Grasslands',
-        11: 'Permanent Wetlands',
-        12: 'Croplands',
-        13: 'Urban and Built-up Lands',
-        14: 'Cropland/Natural Vegetation Mosaics',
-        15: 'Permanent Snow and Ice',
-        16: 'Barren',
-        17: 'Water Bodies'
-    };
-    vectorized_func = np.vectorize(lambda x: lc_map[x]);
-    lc = vectorized_func(lc_raw);
+    lc = tifffile.imread(LC_TIF)  # (H,W) or (1,H,W)
+    if lc.ndim == 3:
+        lc = lc[0]
 
     geoms = [];
     ward_ids = np.zeros((H, W), dtype="int32")
@@ -312,7 +290,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
 
         lc_mask = (ward_ids == wid)
         lc_pix_vals = lc[lc_mask]
-        ward_lc = "No data";
+        ward_lc = 0;
         if lc_pix_vals.size != 0:
             ward_lc = common_lc(lc_pix_vals);
 
@@ -324,7 +302,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
 
             "pixel_count": ndvi_stats["pixel_count"],
 
-            "lc_mode": ward_lc,
+            "lc_mode": int(ward_lc),
 
             "ndvi_min": ndvi_stats["min"],
             "ndvi_q1": ndvi_stats["q1"],
@@ -363,7 +341,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         "ndvi": ndvi_grid.reshape(-1).astype(float).tolist(),
         "lst_day_C": lst_day_grid.reshape(-1).astype(float).tolist(),
         "lst_night_C": lst_night_grid.reshape(-1).astype(float).tolist(),
-        "lc": lc.reshape(-1).tolist(),
+        "lc": lc.reshape(-1).astype(int).tolist(),
 
         "ndvi_min": ndvi_min,
         "ndvi_max": ndvi_max,
@@ -371,7 +349,8 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         "lst_day_max": lst_day_max,
         "lst_night_min": lst_night_min,
         "lst_night_max": lst_night_max,
-        "lc_max": lc_max
+        "lc_min": 0,
+        "lc_max": 17
     }
 
     with open(GRID_OUT, "w", encoding="utf-8") as f:
@@ -389,38 +368,40 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         json.dump(wards_out, f)
     print("Wrote", WARDS_OUT)
 
-#TOKYO_NDVI = "data/tokyo/tokyo_NDVI.tif"
-#TOKYO_LST  = "data/tokyo/tokyo_LST.tif"
-#TOKYO_LC = "data/tokyo/tokyo_LC.tif"
-#TOKYO_WARDS_DIR = "data/tokyo_wards"
-#TOKYO_GRID_OUT = "data/tokyo/tokyo_grid.json"
-#TOKYO_WARDS_OUT = "data/tokyo/tokyo_wards.json"
-#TOKYO_LAT_LONG = [139.3, 35.4, 140.2, 36.2];
-#preprocess("Tokyo", TOKYO_NDVI, TOKYO_LST, TOKYO_LC, True, TOKYO_WARDS_DIR, TOKYO_GRID_OUT, TOKYO_WARDS_OUT, TOKYO_LAT_LONG);
+"""
+TOKYO_NDVI = "data/tokyo/tokyo_NDVI.tif"
+TOKYO_LST  = "data/tokyo/tokyo_LST.tif"
+TOKYO_LC = "data/tokyo/tokyo_LC.tif"
+TOKYO_WARDS_DIR = "data/tokyo_wards"
+TOKYO_GRID_OUT = "data/tokyo/tokyo_grid.json"
+TOKYO_WARDS_OUT = "data/tokyo/tokyo_wards.json"
+TOKYO_LAT_LONG = [139.3, 35.4, 140.2, 36.2];
+preprocess("Tokyo", TOKYO_NDVI, TOKYO_LST, TOKYO_LC, True, TOKYO_WARDS_DIR, TOKYO_GRID_OUT, TOKYO_WARDS_OUT, TOKYO_LAT_LONG);
 
-#LONDON_NDVI = "data/london/london_NDVI_2020_summer.tif"
-#LONDON_LST  = "data/london/london_LST_2020_summer.tif"
-#LONDON_LC = "data/london/london_LC_2020.tif"
-#LONDON_WARDS_DIR = "data/london/boundaries/london32.json"
-#LONDON_GRID_OUT = "data/london/london_grid.json"
-#LONDON_WARDS_OUT = "data/london/london_boroughs.json"
-#LONDON_LAT_LONG = [-0.5, 51.3, 0.3, 51.7];
-#preprocess("London", LONDON_NDVI, LONDON_LST, LONDON_LC, False, LONDON_WARDS_DIR, LONDON_GRID_OUT, LONDON_WARDS_OUT, LONDON_LAT_LONG);
+LONDON_NDVI = "data/london/london_NDVI_2020_summer.tif"
+LONDON_LST  = "data/london/london_LST_2020_summer.tif"
+LONDON_LC = "data/london/london_LC_2020.tif"
+LONDON_WARDS_DIR = "data/london/boundaries/london32.json"
+LONDON_GRID_OUT = "data/london/london_grid.json"
+LONDON_WARDS_OUT = "data/london/london_boroughs.json"
+LONDON_LAT_LONG = [-0.5, 51.3, 0.3, 51.7];
+preprocess("London", LONDON_NDVI, LONDON_LST, LONDON_LC, False, LONDON_WARDS_DIR, LONDON_GRID_OUT, LONDON_WARDS_OUT, LONDON_LAT_LONG);
 
-#NYC_NDVI = "data/nyc/nyc_NDVI.tif"
-#NYC_LST  = "data/nyc/nyc_LST.tif"
-#NYC_LC = "data/nyc/nyc_LC.tif"
-#NYC_WARDS_DIR = "data/nyc/boundaries/nyc.json"
-#NYC_GRID_OUT = "data/nyc/nyc_grid.json"
-#NYC_WARDS_OUT = "data/nyc/nyc_boroughs.json"
-#NYC_LAT_LONG = [-74.27, 40.49, -73.68, 40.92];
-#preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG, "BoroName");
+NYC_NDVI = "data/nyc/nyc_NDVI.tif"
+NYC_LST  = "data/nyc/nyc_LST.tif"
+NYC_LC = "data/nyc/nyc_LC.tif"
+NYC_WARDS_DIR = "data/nyc/boundaries/nyc.json"
+NYC_GRID_OUT = "data/nyc/nyc_grid.json"
+NYC_WARDS_OUT = "data/nyc/nyc_boroughs.json"
+NYC_LAT_LONG = [-74.27, 40.49, -73.68, 40.92];
+preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG, "BoroName");
 
-#SD_NDVI = "data/san-diego/sandiego_NDVI.tif"
-#SD_LST  = "data/san-diego/sandiego_LST.tif"
-#SD_LC = "data/san-diego/sandiego_LC.tif"
-#SD_WARDS_DIR = "data/san-diego/boundaries/Council_Districts.geojson"
-#SD_GRID_OUT = "data/san-diego/sandiego_grid.json"
-#SD_WARDS_OUT = "data/san-diego/sandiego_boroughs.json"
-#SD_LAT_LONG = [-117.6, 32.53, -116.08, 33.49];
-#preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG, "JUR_NAME");
+SD_NDVI = "data/san-diego/sandiego_NDVI.tif"
+SD_LST  = "data/san-diego/sandiego_LST.tif"
+SD_LC = "data/san-diego/sandiego_LC.tif"
+SD_WARDS_DIR = "data/san-diego/boundaries/Council_Districts.geojson"
+SD_GRID_OUT = "data/san-diego/sandiego_grid.json"
+SD_WARDS_OUT = "data/san-diego/sandiego_boroughs.json"
+SD_LAT_LONG = [-117.6, 32.53, -116.08, 33.49];
+preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG, "JUR_NAME");
+"""

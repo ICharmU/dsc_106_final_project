@@ -1,3 +1,24 @@
+const landCoverTypes = {
+    0: 'No Data',
+    1: 'Evergreen Needleleaf Forests',
+    2: 'Evergreen Broadleaf Forests',
+    3: 'Deciduous Needleleaf Forests', 
+    4: 'Deciduous Broadleaf Forests',
+    5: 'Mixed Forests',
+    6: 'Closed Shrublands',
+    7: 'Open Shrublands',
+    8: 'Woody Savannas',
+    9: 'Savannas',
+    10: 'Grasslands',
+    11: 'Permanent Wetlands',
+    12: 'Croplands',
+    13: 'Urban and Built-up Lands',
+    14: 'Cropland/Natural Vegetation Mosaics',
+    15: 'Permanent Snow and Ice',
+    16: 'Barren',
+    17: 'Water Bodies'
+};
+
 async function createCityGridMap(config) {
   const {
     containerId,
@@ -232,9 +253,12 @@ async function createCityGridMap(config) {
       const v = layer.values[pixel.idx];
       if (v == null || !Number.isFinite(v)) return;
       const active = (layer.id === activeLayer.id);
+      let val = `${v.toFixed(2)}${layer.unit ? " " + layer.unit : ""}`;
+      if (layer.id == 'lc') {
+        val = landCoverTypes[parseInt(val)]
+      }
       rows += `<span style="color:${active ? "#fff" : "#ccc"}">` +
-        `${layer.label}: ${v.toFixed(2)}${layer.unit ? " " + layer.unit : ""}` +
-        `</span><br>`;
+        `${layer.label}: `+ val + `</span><br>`;
     });
 
     return (
@@ -905,6 +929,15 @@ createMultiCityGridMap({
           label: "Nighttime LST (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
         }
       ],
       showLayerToggle: true
