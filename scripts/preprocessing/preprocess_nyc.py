@@ -1,7 +1,6 @@
 import json
 import numpy as np
 import tifffile
-import imagecodecs
 import shapely
 from shapely.geometry import shape, Point
 
@@ -108,12 +107,10 @@ geoms = [shapely.make_valid(shape(feat["geometry"])) for feat in features]
 
 borough_ids = np.zeros((H, W), dtype="int32")
 borough_names = {}
-borough_codes = {}
 
 for idx, feat in enumerate(features, start=1):
     props = feat.get("properties", {})
     borough_names[idx] = props.get("BoroName")
-    borough_codes[idx] = props.get("BoroCode")
 
 # assign each pixel to a ward by its centre point
 for r in range(H):
@@ -190,7 +187,6 @@ unique_boroughs = sorted(int(i) for i in np.unique(borough_ids) if i > 0)
 
 for wid in unique_boroughs:
     name = borough_names.get(wid, f"Borough {wid}")
-    code = borough_codes.get(wid, name)
 
     mask = (borough_ids == wid)
     rows, cols = np.where(mask)
@@ -214,7 +210,6 @@ for wid in unique_boroughs:
     boroughs_output.append({
         "id": wid,
         "name": name,
-        "code": code,
         "centroid": {"lon": lon_cent, "lat": lat_cent},
         "bbox": [lon_min, lat_min, lon_max, lat_max],
 

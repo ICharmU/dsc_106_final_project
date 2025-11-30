@@ -106,7 +106,6 @@ geoms = [shape(feat["geometry"]) for feat in features]
 
 ward_ids = np.zeros((H, W), dtype="int32")
 ward_names = {}
-ward_codes = {}
 
 for idx, feat in enumerate(features, start=1):
     props = feat.get("properties", {})
@@ -118,7 +117,6 @@ for idx, feat in enumerate(features, start=1):
         or f"Ward {idx}"
     )
     ward_names[idx] = name
-    ward_codes[idx] = props.get("code") or name
 
 # assign each pixel to a ward by its centre point
 for r in range(H):
@@ -197,7 +195,6 @@ unique_wards = sorted(int(i) for i in np.unique(ward_ids) if i > 0)
 
 for wid in unique_wards:
     name = ward_names.get(wid, f"Ward {wid}")
-    code = ward_codes.get(wid, name)
 
     mask = (ward_ids == wid)
     rows, cols = np.where(mask)
@@ -221,7 +218,6 @@ for wid in unique_wards:
     wards_output.append({
         "id": wid,
         "name": name,
-        "code": code,
         "centroid": {"lon": lon_cent, "lat": lat_cent},
         "bbox": [lon_min, lat_min, lon_max, lat_max],
 

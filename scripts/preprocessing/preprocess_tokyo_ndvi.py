@@ -109,7 +109,6 @@ lst_night = lst_night_K - 273.15
 
 ward_geoms = []
 ward_names = {}
-ward_codes = {}
 
 ward_index = 1
 
@@ -148,11 +147,9 @@ for path in sorted(glob.glob(pattern)):
 
         # Clean up filename-based names: "adachi-ku" -> "Adachi-Ku"
         name = raw_name.replace("_", " ").replace("-", " ").title()
-        code = props.get("code") or name
 
         ward_geoms.append(geom)
         ward_names[ward_index] = name
-        ward_codes[ward_index] = code
         ward_index += 1
 
 print(f"Loaded {len(ward_geoms)} ward geometries from {TOKYO_WARDS_DIR}")
@@ -237,7 +234,6 @@ unique_wards = sorted(int(i) for i in np.unique(ward_ids) if i > 0)
 
 for wid in unique_wards:
     name = ward_names.get(wid, f"Ward {wid}")
-    code = ward_codes.get(wid, name)
 
     mask = (ward_ids == wid)
     rows, cols = np.where(mask)
@@ -261,7 +257,6 @@ for wid in unique_wards:
     wards_output.append({
         "id": wid,
         "name": name,
-        "code": code,
         "centroid": {"lon": lon_cent, "lat": lat_cent},
         "bbox": [lon_min, lat_min, lon_max, lat_max],
 
