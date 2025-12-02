@@ -126,8 +126,24 @@ async function createCityGridMap(config) {
   const pixels = new Array(rasterWidth * rasterHeight);
   const [minLon, minLat, maxLon, maxLat] = bbox;
 
-  const cellWidth  = width / rasterWidth;
-  const cellHeight = height / rasterHeight;
+  const rasterAspect = rasterWidth / rasterHeight;
+  const containerAspect = width / height;
+
+  let cellWidth, cellHeight, xOffset, yOffset;
+
+  if (containerAspect > rasterAspect) {
+    // container is relatively wider -> height is limiting dimension
+    cellHeight = height / rasterHeight;
+    cellWidth  = cellHeight;
+    xOffset    = (width - rasterWidth * cellWidth) / 2;
+    yOffset    = 0;
+  } else {
+    // container is relatively taller -> width is limiting dimension
+    cellWidth  = width / rasterWidth;
+    cellHeight = cellWidth;
+    xOffset    = 0;
+    yOffset    = (height - rasterHeight * cellHeight) / 2;
+  }
 
   for (let idx = 0; idx < pixels.length; idx++) {
     const row = Math.floor(idx / rasterWidth);
@@ -152,7 +168,10 @@ async function createCityGridMap(config) {
 
   const zoom = d3.zoom()
     .scaleExtent([1, 8])
-    .translateExtent([[0, 0], [width, height]])
+    .translateExtent([
+      [xOffset, yOffset],
+      [xOffset + rasterWidth * cellWidth, yOffset + rasterHeight * cellHeight]
+    ])
     .on("zoom", (event) => {
       rootG.attr("transform", event.transform);
     });
@@ -181,8 +200,8 @@ async function createCityGridMap(config) {
     .data(pixels)
     .enter()
     .append("rect")
-    .attr("x", d => d.col * cellWidth)
-    .attr("y", d => d.row * cellHeight)
+    .attr("x", d => xOffset + d.col * cellWidth)
+    .attr("y", d => yOffset + d.row * cellHeight)
     .attr("width", cellWidth + 0.01)
     .attr("height", cellHeight + 0.01);
 
@@ -205,9 +224,9 @@ async function createCityGridMap(config) {
       if (col < rasterWidth - 1) {
         const wRight = wardIds[idx + 1];
         if (wRight !== wId) {
-          const x = (col + 1) * cellWidth;
-          const y1 = row * cellHeight;
-          const y2 = (row + 1) * cellHeight;
+          const x  = xOffset + (col + 1) * cellWidth;
+          const y1 = yOffset + row * cellHeight;
+          const y2 = yOffset + (row + 1) * cellHeight;
           borderG.append("line")
             .attr("x1", x).attr("y1", y1)
             .attr("x2", x).attr("y2", y2);
@@ -218,9 +237,9 @@ async function createCityGridMap(config) {
       if (row < rasterHeight - 1) {
         const wDown = wardIds[idx + rasterWidth];
         if (wDown !== wId) {
-          const y = (row + 1) * cellHeight;
-          const x1 = col * cellWidth;
-          const x2 = (col + 1) * cellWidth;
+          const y  = yOffset + (row + 1) * cellHeight;
+          const x1 = xOffset + col * cellWidth;
+          const x2 = xOffset + (col + 1) * cellWidth;
           borderG.append("line")
             .attr("x1", x1).attr("y1", y)
             .attr("x2", x2).attr("y2", y);
@@ -254,8 +273,9 @@ async function createCityGridMap(config) {
       if (v == null || !Number.isFinite(v)) return;
       const active = (layer.id === activeLayer.id);
       let val = `${v.toFixed(2)}${layer.unit ? " " + layer.unit : ""}`;
-      if (layer.id == 'lc') {
-        val = landCoverTypes[parseInt(val)]
+      if (layer.id === "lc") {
+        const lcCode = Math.round(v);
+        val = landCoverTypes[lcCode] || `Class ${lcCode}`;
       }
       rows += `<span style="color:${active ? "#fff" : "#ccc"}">` +
         `${layer.label}: `+ val + `</span><br>`;
@@ -276,6 +296,10 @@ async function createCityGridMap(config) {
   const legendHeight = 10;
   const legendMargin = 16;
 
+  // Make a unique gradient id per map instance to avoid clashes
+  const safeContainerId = containerId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const gradientId = `grid-layer-gradient-${safeContainerId}`;
+
   const legendSvg = container.append("svg")
     .attr("width", legendWidth)
     .attr("height", legendHeight + 36)
@@ -285,7 +309,7 @@ async function createCityGridMap(config) {
 
   const legendDefs = legendSvg.append("defs");
   const gradient = legendDefs.append("linearGradient")
-    .attr("id", "grid-layer-gradient")
+    .attr("id", gradientId)   // <-- use unique id here
     .attr("x1", "0%").attr("x2", "100%")
     .attr("y1", "0%").attr("y2", "0%");
 
@@ -293,7 +317,8 @@ async function createCityGridMap(config) {
     .attr("x", 0)
     .attr("y", 16)
     .attr("width", legendWidth)
-    .attr("height", legendHeight);
+    .attr("height", legendHeight)
+    .attr("fill", `url(#${gradientId})`);
 
   const legendLabel = legendSvg.append("text")
     .attr("x", legendWidth / 2)
@@ -370,15 +395,28 @@ async function createCityGridMap(config) {
     sel
       .attr("fill", d => {
         const v = activeLayer.values[d.idx];
-        if (v == null || !Number.isFinite(v)) return "transparent";
+        const hasValue = v != null && Number.isFinite(v);
+
+        // Outside any ward: always show a light background so the city "floats"
         if (!d.wardId) {
+          if (!hasValue) {
+            // Neutral light-grey when we don't have data
+            return "rgba(235,235,235,0.9)";
+          }
           const c = d3.color(colorScale(v));
-          c.opacity = 0.30;
+          c.opacity = 0.30;   // softer than in-city pixels
           return c;
         }
+
+        // Inside wards: if somehow missing, fall back to a light grey
+        if (!hasValue) {
+          return "#f0f0f0";
+        }
+
+        // Normal in-city pixel
         return colorScale(v);
       })
-      .attr("fill-opacity", d => d.wardId ? 1.0 : 1.0);
+      .attr("fill-opacity", 1.0);
 
     // Legend gradient
     gradient.selectAll("stop").remove();
@@ -391,7 +429,7 @@ async function createCityGridMap(config) {
         .attr("stop-color", colorScale(v));
     }
 
-    legendRect.attr("fill", "url(#grid-layer-gradient)");
+    legendRect.attr("fill", `url(#${gradientId})`);
     legendLabel.text(activeLayer.label);
     legendMinText.text(
       activeLayer.min.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : "")
