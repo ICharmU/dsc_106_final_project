@@ -157,7 +157,57 @@ async function createCityGridMap(config) {
     pixels[idx] = { idx, row, col, lon, lat, wardId };
   }
 
-  // ---------- 4. SVG, zoom root, shadow filter ----------
+  // ---------- 4. City-specific processing configurations ----------
+  // Define these early so they can be used in SVG setup
+  const isTokyo = cityName.toLowerCase().includes('tokyo');
+  
+  // Cities that need full vertical flip for all pixels + background opacity control
+  const citiesWithFullVerticalFlip = ['london', 'new york', 'san diego'];
+  const needsFullVerticalFlip = citiesWithFullVerticalFlip.some(city => 
+    cityName.toLowerCase().includes(city)
+  );
+
+  // Swap wardId assignments to flip which pixels are foreground
+  if (needsFullVerticalFlip) {
+    // Create a temporary copy of wardIds
+    const tempWardIds = new Array(pixels.length);
+    for (let idx = 0; idx < pixels.length; idx++) {
+      const row = Math.floor(idx / rasterWidth);
+      const col = idx % rasterWidth;
+      
+      // Calculate where this pixel's wardId should come from (vertically flipped)
+      const flippedRow = rasterHeight - 1 - row;
+      const sourceIdx = flippedRow * rasterWidth + col;
+      
+      tempWardIds[idx] = wardIds[sourceIdx] || 0;
+    }
+    // Apply the swapped wardIds to pixels
+    for (let idx = 0; idx < pixels.length; idx++) {
+      pixels[idx].wardId = tempWardIds[idx];
+    }
+  }
+
+  // Swap wardId assignments for Tokyo (horizontal + vertical flip)
+  if (isTokyo) {
+    const tempWardIds = new Array(pixels.length);
+    for (let idx = 0; idx < pixels.length; idx++) {
+      const row = Math.floor(idx / rasterWidth);
+      const col = idx % rasterWidth;
+      
+      // Calculate where this pixel's wardId should come from (both flips)
+      const flippedRow = rasterHeight - 1 - row;
+      const flippedCol = rasterWidth - 1 - col;
+      const sourceIdx = flippedRow * rasterWidth + flippedCol;
+      
+      tempWardIds[idx] = wardIds[sourceIdx] || 0;
+    }
+    // Apply the swapped wardIds to pixels
+    for (let idx = 0; idx < pixels.length; idx++) {
+      pixels[idx].wardId = tempWardIds[idx];
+    }
+  }
+
+  // ---------- 5. SVG, zoom root, shadow filter ----------
   const svg = container.append("svg")
     .attr("width", width)
     .attr("height", height)
@@ -193,7 +243,7 @@ async function createCityGridMap(config) {
     .attr("flood-color", "#000")
     .attr("flood-opacity", 0.35);
 
-  // ---------- 5. Pixel grid (draw once) ----------
+  // ---------- 6. Pixel grid (draw once) ----------
   const pixelG = rootG.append("g").attr("class", "grid-pixels");
 
   const rects = pixelG.selectAll("rect")
@@ -205,7 +255,9 @@ async function createCityGridMap(config) {
     .attr("width", cellWidth + 0.01)
     .attr("height", cellHeight + 0.01);
 
-  // ---------- 6. Ward borders (pixel-aligned) ----------
+  // ---------- 7. Ward borders (pixel-aligned) ----------
+  // COMMENTED OUT - showing only background
+  // ---------- 7. Ward borders (pixel-aligned) ----------
   const borderG = rootG.append("g")
     .attr("class", "grid-ward-borders")
     .attr("stroke", "#111")
@@ -220,13 +272,27 @@ async function createCityGridMap(config) {
       const wId = wardIds[idx];
       if (!wId) continue;
 
+      // Skip drawing borders for Tokyo
+      if (isTokyo) continue;
+
+      // Apply flipping for city-specific transformations
+      let displayRow = row;
+      let displayCol = col;
+      
+      if (isTokyo) {
+        displayRow = rasterHeight - 1 - row;
+        displayCol = rasterWidth - 1 - col;
+      } else if (needsFullVerticalFlip) {
+        displayRow = rasterHeight - 1 - row;
+      }
+
       // right edge
       if (col < rasterWidth - 1) {
         const wRight = wardIds[idx + 1];
         if (wRight !== wId) {
-          const x  = xOffset + (col + 1) * cellWidth;
-          const y1 = yOffset + row * cellHeight;
-          const y2 = yOffset + (row + 1) * cellHeight;
+          const x  = xOffset + (displayCol + 1) * cellWidth;
+          const y1 = yOffset + displayRow * cellHeight;
+          const y2 = yOffset + (displayRow + 1) * cellHeight;
           borderG.append("line")
             .attr("x1", x).attr("y1", y1)
             .attr("x2", x).attr("y2", y2);
@@ -237,9 +303,9 @@ async function createCityGridMap(config) {
       if (row < rasterHeight - 1) {
         const wDown = wardIds[idx + rasterWidth];
         if (wDown !== wId) {
-          const y  = yOffset + (row + 1) * cellHeight;
-          const x1 = xOffset + col * cellWidth;
-          const x2 = xOffset + (col + 1) * cellWidth;
+          const y  = yOffset + (displayRow + 1) * cellHeight;
+          const x1 = xOffset + displayCol * cellWidth;
+          const x2 = xOffset + (displayCol + 1) * cellWidth;
           borderG.append("line")
             .attr("x1", x1).attr("y1", y)
             .attr("x2", x2).attr("y2", y);
@@ -248,7 +314,7 @@ async function createCityGridMap(config) {
     }
   }
 
-  // ---------- 7. Tooltip ----------
+  // ---------- 8. Tooltip ----------
   const tooltip = d3.select("body")
     .append("div")
     .attr("class", "grid-tooltip")
@@ -291,7 +357,7 @@ async function createCityGridMap(config) {
 
   const tooltipFn = tooltipFormatter || defaultTooltipFormatter;
 
-  // ---------- 8. Legend ----------
+  // ---------- 9. Legend ----------
   const legendWidth  = 210;
   const legendHeight = 10;
   const legendMargin = 16;
@@ -340,9 +406,12 @@ async function createCityGridMap(config) {
     .attr("fill", "#333")
     .attr("text-anchor", "end");
 
-  // ---------- 9. Layer toggle buttons ----------
+  // ---------- 10. Layer toggle buttons ----------
   let activeLayer = layerStates.find(l => l.id === activeLayerId) || layerStates[0];
   activeLayerId = activeLayer.id;
+
+  // Background opacity control for London
+  let backgroundOpacity = 0.30;
 
   let buttons = null;
   if (showLayerToggle && layerStates.length > 1) {
@@ -381,7 +450,52 @@ async function createCityGridMap(config) {
       });
   }
 
-  // ---------- 10. Apply active layer (colors + legend) ----------
+  // Background opacity control for Tokyo and cities with full vertical flip processing
+  if (isTokyo || needsFullVerticalFlip) {
+    const opacityControl = container.append("div")
+      .attr("class", "opacity-control")
+      .style("position", "absolute")
+      .style("top", "50px")
+      .style("right", "16px")
+      .style("background", "rgba(250,250,250,0.9)")
+      .style("padding", "6px 8px")
+      .style("border-radius", "4px")
+      .style("font-size", "11px")
+      .style("display", "flex")
+      .style("flex-direction", "column")
+      .style("gap", "4px");
+
+    opacityControl.append("label")
+      .text("Background Opacity")
+      .style("font-weight", "500");
+
+    const sliderContainer = opacityControl.append("div")
+      .style("display", "flex")
+      .style("align-items", "center")
+      .style("gap", "6px");
+
+    const slider = sliderContainer.append("input")
+      .attr("type", "range")
+      .attr("min", "0")
+      .attr("max", "100")
+      .attr("value", "30")
+      .style("width", "100px")
+      .style("cursor", "pointer");
+
+    const valueLabel = sliderContainer.append("span")
+      .text("30%")
+      .style("min-width", "35px")
+      .style("text-align", "right");
+
+    slider.on("input", function() {
+      const value = +this.value;
+      backgroundOpacity = value / 100;
+      valueLabel.text(value + "%");
+      updateLayer(false); // update without animation for smooth slider response
+    });
+  }
+
+  // ---------- 11. Apply active layer (colors + legend) ----------
   function updateLayer(animate = false) {
     if (!activeLayer) return;
 
@@ -397,24 +511,29 @@ async function createCityGridMap(config) {
         const v = activeLayer.values[d.idx];
         const hasValue = v != null && Number.isFinite(v);
 
-        // Outside any ward: always show a light background so the city "floats"
-        if (!d.wardId) {
-          if (!hasValue) {
-            // Neutral light-grey when we don't have data
-            return "rgba(235,235,235,0.9)";
+        // For cities with vertical flip or Tokyo: distinguish foreground (wardId > 0) from background (wardId = 0)
+        if (isTokyo || needsFullVerticalFlip) {
+          if (!d.wardId) {
+            // Background pixels with adjustable opacity
+            if (!hasValue) {
+              return "rgba(235,235,235,0.9)"; // No data background = light grey
+            }
+            const c = d3.color(colorScale(v));
+            c.opacity = backgroundOpacity;
+            return c;
           }
-          const c = d3.color(colorScale(v));
-          c.opacity = 0.30;   // softer than in-city pixels
-          return c;
+          // Foreground/ward pixels get full opacity
+          if (!hasValue) {
+            return "#f0f0f0"; // No data in ward = light grey
+          }
+          return colorScale(v);
         }
 
-        // Inside wards: if somehow missing, fall back to a light grey
+        // For other cities: no foreground/background distinction
         if (!hasValue) {
-          return "#f0f0f0";
+          return "rgba(235,235,235,0.9)"; // No data = light grey
         }
-
-        // Normal in-city pixel
-        return colorScale(v);
+        return colorScale(v); // All pixels get full opacity colormap
       })
       .attr("fill-opacity", 1.0);
 
@@ -450,7 +569,7 @@ async function createCityGridMap(config) {
 
   updateLayer(false); // initial paint
 
-  // ---------- 11. Pixel hover (tooltips + wardHover event) ----------
+  // ---------- 12. Pixel hover (tooltips + wardHover event) ----------
   rects
     .on("mouseenter", function (event, d) {
       d3.select(this)
