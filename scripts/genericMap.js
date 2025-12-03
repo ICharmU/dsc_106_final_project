@@ -187,17 +187,16 @@ async function createCityGridMap(config) {
     }
   }
 
-  // Swap wardId assignments for Tokyo (horizontal + vertical flip)
+  // Swap wardId assignments for Tokyo (vertical flip only)
   if (isTokyo) {
     const tempWardIds = new Array(pixels.length);
     for (let idx = 0; idx < pixels.length; idx++) {
       const row = Math.floor(idx / rasterWidth);
       const col = idx % rasterWidth;
       
-      // Calculate where this pixel's wardId should come from (both flips)
+      // Calculate where this pixel's wardId should come from (vertical flip only)
       const flippedRow = rasterHeight - 1 - row;
-      const flippedCol = rasterWidth - 1 - col;
-      const sourceIdx = flippedRow * rasterWidth + flippedCol;
+      const sourceIdx = flippedRow * rasterWidth + col;
       
       tempWardIds[idx] = wardIds[sourceIdx] || 0;
     }
