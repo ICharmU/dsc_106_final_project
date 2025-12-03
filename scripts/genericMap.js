@@ -271,16 +271,13 @@ async function createCityGridMap(config) {
       const wId = wardIds[idx];
       if (!wId) continue;
 
-      // Skip drawing borders for Tokyo
-      if (isTokyo) continue;
-
       // Apply flipping for city-specific transformations
       let displayRow = row;
       let displayCol = col;
       
       if (isTokyo) {
         displayRow = rasterHeight - 1 - row;
-        displayCol = rasterWidth - 1 - col;
+        // No horizontal flip for borders
       } else if (needsFullVerticalFlip) {
         displayRow = rasterHeight - 1 - row;
       }
