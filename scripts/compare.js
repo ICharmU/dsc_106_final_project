@@ -30,22 +30,24 @@ const CITY_COMPARE_CONFIGS = [
 ];
 
 // -------------------------------------------------------------
-// For each map layer, define *one* ward-level metric to show
+// Metric options *independent* of map layers
 // -------------------------------------------------------------
-const LAYER_METRICS = {
-  ndvi: {
-    metricKey: "ndvi_mean",
+const METRIC_OPTIONS = [
+  {
+    key: "ndvi_mean",
     label: "Ward-average greenness (NDVI)"
   },
-  lst_night: {
-    metricKey: "lst_night_mean",
-    label: "Ward-average nighttime land surface temperature (°C)"
-  },
-  lst_day: {
-    metricKey: "lst_day_mean",
+  {
+    key: "lst_day_mean",
     label: "Ward-average daytime land surface temperature (°C)"
+  },
+  {
+    key: "lst_night_mean",
+    label: "Ward-average nighttime land surface temperature (°C)"
   }
-};
+];
+
+const METRIC_BY_KEY = new Map(METRIC_OPTIONS.map(m => [m.key, m]));
 
 // -------------------------------------------------------------
 // Global-ish state for the ward comparison view
@@ -53,12 +55,11 @@ const LAYER_METRICS = {
 const wardsByCity = new Map();  // cityId -> wards[]
 let activeCityId = "tokyo";
 
-let activeMetricKey = LAYER_METRICS.ndvi.metricKey;
-let activeMetricLabel = LAYER_METRICS.ndvi.label;
+let activeMetricKey = METRIC_OPTIONS[0].key;
+let activeMetricLabel = METRIC_OPTIONS[0].label;
 
 let barSvg = null;
 let barsSelection = null;
-let featureLabelSpan = null;
 let barTooltip = null;
 let barHighlightId = null;
 
@@ -70,24 +71,12 @@ function cityIdFromName(name) {
   if (s.includes("tokyo")) return "tokyo";
   if (s.includes("london")) return "london";
   if (s.includes("new york city")) return "nyc";
-  if (s.includes ("san diego county")) return "san-diego";
+  if (s.includes("san diego county")) return "san-diego";
   return null;
 }
 
 function getCityConfig(id) {
   return CITY_COMPARE_CONFIGS.find(c => c.id === id);
-}
-
-function updateMetricFromLayer(layerId) {
-  const info = LAYER_METRICS[layerId];
-  if (!info) return;  // unknown layer -> ignore
-
-  activeMetricKey = info.metricKey;
-  activeMetricLabel = info.label;
-
-  if (featureLabelSpan) {
-    featureLabelSpan.text(activeMetricLabel);
-  }
 }
 
 function highlightBar(wardId) {
@@ -148,15 +137,33 @@ function buildWardCompareShell() {
 
   updateCityButtonStyles();
 
-  // ---- Feature label ----
-  const featCtrl = controls.append("div");
-  featCtrl.append("span").text("Comparing neighborhoods by: ");
+  // ---- Metric dropdown (independent of maps) ----
+  const metricCtrl = controls.append("div");
+  metricCtrl.append("span").text("Comparing neighborhoods by: ");
 
-  featureLabelSpan = featCtrl.append("span")
-    .attr("class", "ward-feature-label")
-    .style("font-weight", "600");
+  const metricSelect = metricCtrl.append("select")
+    .style("padding", "2px 4px")
+    .style("border-radius", "3px")
+    .style("border", "1px solid #ccc");
 
-  featureLabelSpan.text(activeMetricLabel);
+  metricSelect.selectAll("option")
+    .data(METRIC_OPTIONS, d => d.key)
+    .enter()
+    .append("option")
+    .attr("value", d => d.key)
+    .text(d => d.label);
+
+  metricSelect.property("value", activeMetricKey);
+
+  metricSelect.on("change", function () {
+    const key = this.value;
+    const info = METRIC_BY_KEY.get(key);
+    if (!info) return;
+
+    activeMetricKey = info.key;
+    activeMetricLabel = info.label;
+    updateChart();
+  });
 
   // ---- Tooltip (shared) ----
   barTooltip = d3.select("body")
@@ -321,22 +328,8 @@ function updateChart() {
   buildWardCompareShell();
   updateChart();
 
-  // 3) React to map layer changes (NDVI vs day vs night LST)
-  document.addEventListener("gridLayerChanged", (evt) => {
-    const detail = evt.detail || {};
-    const cityId = cityIdFromName(detail.city);
-    const layerId = detail.layerId;
-
-    if (!cityId || !LAYER_METRICS[layerId]) return;
-
-    // If this is the currently viewed city, update the metric & chart
-    if (cityId === activeCityId) {
-      updateMetricFromLayer(layerId);
-      updateChart();
-    }
-  });
-
-  // 4) React to wardHover events from the map (pixel hover)
+  // 3) React ONLY to wardHover events from the map (pixel hover)
+  //    (No more gridLayerChanged -> metric coupling)
   document.addEventListener("wardHover", (evt) => {
     const detail = evt.detail || {};
     const cityId = cityIdFromName(detail.city);
