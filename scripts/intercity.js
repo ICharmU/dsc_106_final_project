@@ -6,6 +6,27 @@ const height = node.clientHeight;
 let bottom_margin = height-60;
 let left_margin = 25;
 
+const landCoverTypes = {
+    0: 'No Data',
+    1: 'Evergreen Needleleaf Forests',
+    2: 'Evergreen Broadleaf Forests',
+    3: 'Deciduous Needleleaf Forests', 
+    4: 'Deciduous Broadleaf Forests',
+    5: 'Mixed Forests',
+    6: 'Closed Shrublands',
+    7: 'Open Shrublands',
+    8: 'Woody Savannas',
+    9: 'Savannas',
+    10: 'Grasslands',
+    11: 'Permanent Wetlands',
+    12: 'Croplands',
+    13: 'Urban and Built-up Lands',
+    14: 'Cropland/Natural Vegetation Mosaics',
+    15: 'Permanent Snow and Ice',
+    16: 'Barren',
+    17: 'Water Bodies'
+};
+
 const vars = d3.select("#cityCompare")
     .append("div")
     .attr("id", "vars");
@@ -126,7 +147,7 @@ async function renderPlot(x, y) {
     const defaultTooltipFormatter = ({ place, ward, ndvi, dlst, nlst, lc, subunit}) => {
         const wardLine = `${subunit}: ${ward}<br>`;
         let rows = "";
-        let allLayers = {'NDVI': parseFloat(ndvi).toFixed(2), 'Daytime LST': parseFloat(dlst).toFixed(2)+' °C', 'Nighttime LST': parseFloat(nlst).toFixed(2)+' °C', 'Land Cover Type': lc};
+        let allLayers = {'NDVI': parseFloat(ndvi).toFixed(2), 'Daytime LST': parseFloat(dlst).toFixed(2)+' °C', 'Nighttime LST': parseFloat(nlst).toFixed(2)+' °C', 'Land Cover Type': landCoverTypes[lc]};
         for (const layer in allLayers)  {
             let val=allLayers[layer];
             rows += `<span style="color:${activeVars.includes(layer) ? "#fff" : "#ccc"}">` +
