@@ -557,6 +557,24 @@ async function createMultiCityGridMap(config) {
 
   controls.append("span").text("City:");
 
+  // City image mapping
+  const cityImages = {
+    "tokyo": "images/tokyo_wards.png",
+    "london": "images/london_boroughs.jpg",
+    "nyc": "images/new_york_city_boroughs.jpg",
+    "san-diego": "images/san_diego_county.png",
+    "sandiego": "images/san_diego_county.png"
+  };
+
+  // City caption mapping
+  const cityCaptions = {
+    "tokyo": "Map of Tokyo Wards",
+    "london": "Map of London Boroughs",
+    "nyc": "Map of New York City Boroughs",
+    "san-diego": "Map of San Diego County",
+    "sandiego": "Map of San Diego County"
+  };
+
   // Inner div where the actual grid map will live
   const innerId = containerId.replace("#", "") + "-inner";
   const innerSelector = "#" + innerId;
@@ -588,6 +606,18 @@ async function createMultiCityGridMap(config) {
   async function renderCurrentCity() {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
+
+    // Update the existing HTML city image
+    const imgElement = document.getElementById("cityImage");
+    const captionElement = document.getElementById("cityImageCaption");
+    const imagePath = cityImages[currentCityId];
+    if (imgElement && imagePath) {
+      imgElement.src = imagePath;
+      imgElement.alt = cityCaptions[currentCityId] || "City Map";
+    }
+    if (captionElement) {
+      captionElement.textContent = cityCaptions[currentCityId] || "City Map";
+    }
 
     await createCityGridMap({
       containerId: innerSelector,
