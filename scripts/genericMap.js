@@ -727,6 +727,132 @@ createMultiCityGridMap({
   ]
 }).catch(err => console.error("Error rendering multi-city NDVI map:", err));
 
+// ------------------------------------------------------------------
+// Heat section: LST-only (day vs night) per city
+// ------------------------------------------------------------------
+createMultiCityGridMap({
+  containerId: "#lstMap",
+  defaultCityId: "tokyo",
+  cityConfigs: [
+    {
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      subunit: "Ward",
+      layers: [
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "nyc",
+      label: "New York City",
+      gridPath: "data/nyc/nyc_grid.json",
+      wardStatsPath: "data/nyc/nyc_boroughs.json",
+      cityName: "New York City",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "sandiego",
+      label: "San Diego County",
+      gridPath: "data/san-diego/sandiego_grid.json",
+      wardStatsPath: "data/san-diego/sandiego_boroughs.json",
+      cityName: "San Diego County",
+      subunit: "City",
+      layers: [
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    }
+  ]
+}).catch(err => console.error("Error rendering LST-only heat map:", err));
+
 // (B) Greenness vs temperature section: NDVI + LST layers with toggle
 // createCityGridMap({
 //   containerId: "#ndvi_heatMap",
@@ -928,11 +1054,220 @@ createMultiCityGridMap({
 }).catch(err => console.error("Error rendering multi-city NDVI/LST map:", err));
 
 // ------------------------------------------------------------------
-// Heat Inequality Map (customizable baseline)
+// Land Cover vs Temperature map (all cities)
+// ------------------------------------------------------------------
+createMultiCityGridMap({
+  containerId: "#lctMap",
+  defaultCityId: "tokyo",
+  cityConfigs: [
+    {
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      subunit: "Ward",
+      layers: [
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "nyc",
+      label: "New York City",
+      gridPath: "data/nyc/nyc_grid.json",
+      wardStatsPath: "data/nyc/nyc_boroughs.json",
+      cityName: "New York City",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "sandiego",
+      label: "San Diego County",
+      gridPath: "data/san-diego/sandiego_grid.json",
+      wardStatsPath: "data/san-diego/sandiego_boroughs.json",
+      cityName: "San Diego County",
+      subunit: "City",
+      layers: [
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        }
+      ],
+      showLayerToggle: true
+    }
+  ]
+}).catch(err => console.error("Error rendering land cover vs temperature map:", err));
+
+// ------------------------------------------------------------------
+// Heat Inequality Map (all cities, including land cover)
 // ------------------------------------------------------------------
 createMultiCityGridMap({
   containerId: "#heatInequalityMap",
   cityConfigs: [
+    {
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      subunit: "Ward",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "NDVI (greenness)",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime LST (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        }
+      ],
+      showLayerToggle: true
+    },
     {
       id: "london",
       label: "London",
@@ -1014,6 +1349,15 @@ createMultiCityGridMap({
           label: "Nighttime LST (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
         }
       ],
       showLayerToggle: true
@@ -1052,6 +1396,15 @@ createMultiCityGridMap({
           label: "Nighttime LST (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
         }
       ],
       showLayerToggle: true

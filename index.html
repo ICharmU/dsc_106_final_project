@@ -15,7 +15,7 @@
   <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
   <!-- <script type="module" src="scripts/london/londonMap.js"></script> -->
   <script type="module" src="scripts/genericMap.js" defer></script>
-  <script type="module" src="scripts/tokyo/compare.js" defer></script>
+  <script type="module" src="scripts/compare.js" defer></script>
   <script type="module" src="scripts/intercity.js" defer></script>
 </head>
 <body>
@@ -28,29 +28,8 @@
     <div class="text">
       <h2>The temperature in your neighborhood isn't random.</h2>
       <p>Small differences in greenness and land cover create big differences in how cities cool at night.</p>
-      <div class="viz" id="hookViz"></div>
-    </div>
-  </section>
-
-  <!-- Spatial Heat Inequality -->
-  <section id="heat">
-    <h2>How heat is distributed across the city</h2>
-    <p class="subtle">Daytime vs nighttime temperatures</p>
-    <!-- <div class="viz" id="lstMap"></div> -->
-    <div class="container">
-      <div class="map-container">
-        <h2>Heat Inequality - London, UK (click map to zoom)</h2>
-        <div id="combined-svgs">
-          <!-- SVGs will be cloned here by JavaScript -->
-        </div>
-      </div>
-    </div>
-  </section>
-  
-  <!-- Additional Heat Inequality Map -->
-  <section id="heatInequality">
-    <h2>London Heat Inequality</h2>
-    <div class="container">
+      <!-- <div class="viz" id="hookViz"></div> -->
+      <div class="container">
       <div class="map-container">
         <div class="viz" id="heatInequalityMap"></div>
         <div style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; display: flex; gap: 20px; align-items: flex-start;">
@@ -72,7 +51,29 @@
         </div>
       </div>
     </div>
+    </div>
   </section>
+
+  <!-- Spatial Heat Inequality -->
+  <section id="heat">
+    <h2>How heat is distributed across the city</h2>
+    <p class="subtle">Daytime vs nighttime temperatures</p>
+    
+    <div class="viz" id="lstMap"></div>
+    <!-- <div class="container">
+      <div class="map-container">
+        <h2>Heat Inequality - London, UK (click map to zoom)</h2>
+        <div id="combined-svgs">
+        </div>
+      </div>
+    </div> -->
+  </section>
+  
+  <!-- Additional Heat Inequality Map -->
+  <!-- <section id="heatInequality">
+    <h2>London Heat Inequality</h2>
+    
+  </section> -->
   
   <!-- London Greenness Map -->
   <!-- <section id="london_greenness">
