@@ -449,51 +449,6 @@ async function createCityGridMap(config) {
       });
   }
 
-  // Background opacity control for Tokyo and cities with full vertical flip processing
-  if (isTokyo || needsFullVerticalFlip) {
-    const opacityControl = container.append("div")
-      .attr("class", "opacity-control")
-      .style("position", "absolute")
-      .style("top", "50px")
-      .style("right", "16px")
-      .style("background", "rgba(250,250,250,0.9)")
-      .style("padding", "6px 8px")
-      .style("border-radius", "4px")
-      .style("font-size", "11px")
-      .style("display", "flex")
-      .style("flex-direction", "column")
-      .style("gap", "4px");
-
-    opacityControl.append("label")
-      .text("Background Opacity")
-      .style("font-weight", "500");
-
-    const sliderContainer = opacityControl.append("div")
-      .style("display", "flex")
-      .style("align-items", "center")
-      .style("gap", "6px");
-
-    const slider = sliderContainer.append("input")
-      .attr("type", "range")
-      .attr("min", "0")
-      .attr("max", "100")
-      .attr("value", "30")
-      .style("width", "100px")
-      .style("cursor", "pointer");
-
-    const valueLabel = sliderContainer.append("span")
-      .text("30%")
-      .style("min-width", "35px")
-      .style("text-align", "right");
-
-    slider.on("input", function() {
-      const value = +this.value;
-      backgroundOpacity = value / 100;
-      valueLabel.text(value + "%");
-      updateLayer(false); // update without animation for smooth slider response
-    });
-  }
-
   // ---------- 11. Apply active layer (colors + legend) ----------
   function updateLayer(animate = false) {
     if (!activeLayer) return;
