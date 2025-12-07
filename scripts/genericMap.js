@@ -19,6 +19,20 @@ const landCoverTypes = {
     17: 'Water Bodies'
 };
 
+// Generate land cover categories for legend
+function getLandCoverCategories(min, max, palette) {
+  const categories = [];
+  for (let value = Math.ceil(min); value <= Math.floor(max); value++) {
+    if (landCoverTypes[value] && value > 0) { // Skip "No Data"
+      categories.push({
+        value: value,
+        label: landCoverTypes[value]
+      });
+    }
+  }
+  return categories;
+}
+
 async function createCityGridMap(config) {
   const {
     containerId,
@@ -77,7 +91,7 @@ async function createCityGridMap(config) {
   //   valueKey: "ndvi",
   //   minKey: "ndvi_min",
   //   maxKey: "ndvi_max",
-  //   label: "NDVI (greenness)",
+  //   label: "Greenness (Vegetation)",
   //   unit: "",
   //   palette: d3.interpolateYlGn
   // }
@@ -107,12 +121,19 @@ async function createCityGridMap(config) {
         : d3.max(vals);
     }
 
-    return {
+    const layerState = {
       ...def,
       values: vals,
       min: minVal,
       max: maxVal
     };
+
+    // Add categories for land cover layers
+    if (def.id === "lc" || def.label === "Land Cover Type") {
+      layerState.categories = getLandCoverCategories(minVal, maxVal, def.palette);
+    }
+
+    return layerState;
   }).filter(Boolean);
 
   if (!layerStates.length) {
@@ -346,53 +367,23 @@ async function createCityGridMap(config) {
   const tooltipFn = tooltipFormatter || defaultTooltipFormatter;
 
   // ---------- 9. Legend ----------
-  const legendWidth  = 210;
-  const legendHeight = 10;
   const legendMargin = 16;
-
-  // Make a unique gradient id per map instance to avoid clashes
   const safeContainerId = containerId.replace(/[^a-zA-Z0-9_-]/g, "");
   const gradientId = `grid-layer-gradient-${safeContainerId}`;
 
-  const legendSvg = container.append("svg")
-    .attr("width", legendWidth)
-    .attr("height", legendHeight + 36)
+  // Create a container div for the legend that can be rebuilt as needed
+  const legendContainer = container.append("div")
+    .attr("class", "legend-container")
     .style("position", "absolute")
     .style("left", legendMargin + "px")
-    .style("bottom", legendMargin + "px");
 
-  const legendDefs = legendSvg.append("defs");
-  const gradient = legendDefs.append("linearGradient")
-    .attr("id", gradientId)   // <-- use unique id here
-    .attr("x1", "0%").attr("x2", "100%")
-    .attr("y1", "0%").attr("y2", "0%");
-
-  const legendRect = legendSvg.append("rect")
-    .attr("x", 0)
-    .attr("y", 16)
-    .attr("width", legendWidth)
-    .attr("height", legendHeight)
-    .attr("fill", `url(#${gradientId})`);
-
-  const legendLabel = legendSvg.append("text")
-    .attr("x", legendWidth / 2)
-    .attr("y", 12)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 11)
-    .attr("fill", "#333");
-
-  const legendMinText = legendSvg.append("text")
-    .attr("x", 0)
-    .attr("y", legendHeight + 32)
-    .attr("font-size", 11)
-    .attr("fill", "#333");
-
-  const legendMaxText = legendSvg.append("text")
-    .attr("x", legendWidth)
-    .attr("y", legendHeight + 32)
-    .attr("font-size", 11)
-    .attr("fill", "#333")
-    .attr("text-anchor", "end");
+    .style("bottom", legendMargin + "px")
+    .style("background", "rgba(255,255,255,0.9)")
+    .style("padding", "8px")
+    .style("border-radius", "4px")
+    .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+    .style("max-height", "300px")
+    .style("overflow-y", "auto");
 
   // ---------- 10. Layer toggle buttons ----------
   let activeLayer = layerStates.find(l => l.id === activeLayerId) || layerStates[0];
@@ -480,25 +471,95 @@ async function createCityGridMap(config) {
       })
       .attr("fill-opacity", 1.0);
 
-    // Legend gradient
-    gradient.selectAll("stop").remove();
-    const stops = 20;
-    for (let i = 0; i <= stops; i++) {
-      const t = i / stops;
-      const v = activeLayer.min + t * (activeLayer.max - activeLayer.min);
-      gradient.append("stop")
-        .attr("offset", (t * 100) + "%")
-        .attr("stop-color", colorScale(v));
-    }
+    // Update legend based on whether this is a categorical layer
+    legendContainer.selectAll("*").remove();
 
-    legendRect.attr("fill", `url(#${gradientId})`);
-    legendLabel.text(activeLayer.label);
-    legendMinText.text(
-      activeLayer.min.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : "")
-    );
-    legendMaxText.text(
-      activeLayer.max.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : "")
-    );
+    if (activeLayer.categories) {
+      // Categorical legend (e.g., Land Cover Type)
+      const legendTitle = legendContainer.append("div")
+        .style("font-size", "11px")
+        .style("font-weight", "bold")
+        .style("margin-bottom", "6px")
+        .style("color", "#333")
+        .text(activeLayer.label);
+
+      const categoriesContainer = legendContainer.append("div")
+        .style("display", "flex")
+        .style("flex-direction", "column")
+        .style("gap", "3px");
+
+      activeLayer.categories.forEach(cat => {
+        const item = categoriesContainer.append("div")
+          .style("display", "flex")
+          .style("align-items", "center")
+          .style("gap", "6px");
+
+        item.append("div")
+          .style("width", "16px")
+          .style("height", "16px")
+          .style("background-color", colorScale(cat.value))
+          .style("border", "1px solid #ccc")
+          .style("flex-shrink", "0");
+
+        item.append("div")
+          .style("font-size", "10px")
+          .style("color", "#333")
+          .text(cat.label);
+      });
+    } else {
+      // Continuous legend (existing behavior)
+      const legendWidth = 210;
+      const legendHeight = 10;
+
+      const legendTitle = legendContainer.append("div")
+        .style("font-size", "11px")
+        .style("font-weight", "bold")
+        .style("margin-bottom", "4px")
+        .style("color", "#333")
+        .style("text-align", "center")
+        .text(activeLayer.label);
+
+      const legendSvg = legendContainer.append("svg")
+        .attr("width", legendWidth)
+        .attr("height", legendHeight + 20);
+
+      const legendDefs = legendSvg.append("defs");
+      const gradient = legendDefs.append("linearGradient")
+        .attr("id", gradientId)
+        .attr("x1", "0%").attr("x2", "100%")
+        .attr("y1", "0%").attr("y2", "0%");
+
+      const stops = 20;
+      for (let i = 0; i <= stops; i++) {
+        const t = i / stops;
+        const v = activeLayer.min + t * (activeLayer.max - activeLayer.min);
+        gradient.append("stop")
+          .attr("offset", (t * 100) + "%")
+          .attr("stop-color", colorScale(v));
+      }
+
+      legendSvg.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .attr("fill", `url(#${gradientId})`);
+
+      legendSvg.append("text")
+        .attr("x", 0)
+        .attr("y", legendHeight + 14)
+        .attr("font-size", 10)
+        .attr("fill", "#333")
+        .text(activeLayer.min.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+
+      legendSvg.append("text")
+        .attr("x", legendWidth)
+        .attr("y", legendHeight + 14)
+        .attr("font-size", 10)
+        .attr("fill", "#333")
+        .attr("text-anchor", "end")
+        .text(activeLayer.max.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+    }
 
     // Broadcast layer change so other components (like ward comparison) can react
     document.dispatchEvent(new CustomEvent("gridLayerChanged", {
@@ -563,12 +624,12 @@ async function createCityGridMap(config) {
     });
 
   // Title on the SVG for context (optional, small)
-  svg.append("text")
-    .attr("x", width / 2)
-    .attr("y", 20)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 14)
-    .text(`${cityName}: grid map`);
+  // svg.append("text")
+  //   .attr("x", width / 2)
+  //   .attr("y", 20)
+  //   .attr("text-anchor", "middle")
+  //   .attr("font-size", 14)
+  //   .text(`${cityName}: grid map`);
 
   // Optional callback & broadcast
   if (typeof onReady === "function") {
@@ -723,7 +784,7 @@ async function createMultiCityGridMap(config) {
 //       valueKey: "ndvi",
 //       minKey: "ndvi_min",
 //       maxKey: "ndvi_max",
-//       label: "NDVI (greenness)",
+//       label: "Greenness (Vegetation)",
 //       unit: "",
 //       palette: d3.interpolateYlGn
 //     }
@@ -749,7 +810,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         }
@@ -769,7 +830,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         }
@@ -789,7 +850,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         }
@@ -809,7 +870,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         }
@@ -839,7 +900,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -848,7 +909,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -868,7 +929,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -877,7 +938,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -897,7 +958,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -906,7 +967,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -926,7 +987,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -935,7 +996,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -958,7 +1019,7 @@ createMultiCityGridMap({
 //       valueKey: "ndvi",
 //       minKey: "ndvi_min",
 //       maxKey: "ndvi_max",
-//       label: "NDVI (greenness)",
+//       label: "Greenness (Vegetation)",
 //       unit: "",
 //       palette: d3.interpolateYlGn
 //     },
@@ -967,7 +1028,7 @@ createMultiCityGridMap({
 //       valueKey: "lst_day_C",
 //       minKey: "lst_day_min",
 //       maxKey: "lst_day_max",
-//       label: "Daytime LST (°C)",
+//       label: "Daytime Temperature (°C)",
 //       unit: "°C",
 //       palette: d3.interpolateInferno
 //     },
@@ -976,7 +1037,7 @@ createMultiCityGridMap({
 //       valueKey: "lst_night_C",
 //       minKey: "lst_night_min",
 //       maxKey: "lst_night_max",
-//       label: "Nighttime LST (°C)",
+//       label: "Nighttime Temperature (°C)",
 //       unit: "°C",
 //       palette: d3.interpolateMagma
 //     }
@@ -1002,7 +1063,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1011,7 +1072,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1020,7 +1081,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1040,7 +1101,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1049,7 +1110,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1058,7 +1119,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1078,7 +1139,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1087,7 +1148,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1096,7 +1157,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1116,7 +1177,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Greenness (Vegetation)",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1125,7 +1186,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1134,7 +1195,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1174,7 +1235,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1183,7 +1244,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1212,7 +1273,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1221,7 +1282,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1250,7 +1311,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1259,7 +1320,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1288,7 +1349,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1297,7 +1358,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         }
@@ -1326,7 +1387,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Vegetation",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1335,7 +1396,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1344,7 +1405,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         },
@@ -1373,7 +1434,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Vegetation",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1382,7 +1443,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1391,7 +1452,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         },
@@ -1420,7 +1481,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Vegetation",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1429,7 +1490,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1438,7 +1499,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         },
@@ -1467,7 +1528,7 @@ createMultiCityGridMap({
           valueKey: "ndvi",
           minKey: "ndvi_min",
           maxKey: "ndvi_max",
-          label: "NDVI (greenness)",
+          label: "Vegetation",
           unit: "",
           palette: d3.interpolateYlGn
         },
@@ -1476,7 +1537,7 @@ createMultiCityGridMap({
           valueKey: "lst_day_C",
           minKey: "lst_day_min",
           maxKey: "lst_day_max",
-          label: "Daytime LST (°C)",
+          label: "Daytime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateInferno
         },
@@ -1485,7 +1546,7 @@ createMultiCityGridMap({
           valueKey: "lst_night_C",
           minKey: "lst_night_min",
           maxKey: "lst_night_max",
-          label: "Nighttime LST (°C)",
+          label: "Nighttime Temperature (°C)",
           unit: "°C",
           palette: d3.interpolateMagma
         },
