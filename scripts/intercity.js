@@ -3,8 +3,8 @@ container.selectAll("*").remove();
 const node = container.node();
 const width = node.clientWidth;
 const height = node.clientHeight;
-let bottom_margin = height-60;
-let left_margin = 25;
+let bottom_margin = height-75;
+let left_margin = 45;
 
 const landCoverTypes = {
     0: 'No Data',
@@ -98,6 +98,7 @@ const tooltip = d3.select("body")
 async function renderPlot(x, y) {
     svg.selectAll("circle").remove();
     svg.selectAll("g").remove();
+    svg.selectAll("text").remove();
     activeVars = [x, y];
     let axisMap = {
         "NDVI": "ndvi_median",
@@ -138,6 +139,26 @@ async function renderPlot(x, y) {
         .attr("transform", `translate(${left_margin},0)`)
         .call(d3.axisLeft(yScale));
 
+    svg.append("text")
+    .attr("class", "x-axis-label")
+    .attr("text-anchor", "middle")
+    .attr("x", width / 2 + 16)
+    .attr("y", height-40) // Position below the x-axis
+    .style("font-size", "14px")
+    .style("font-family", "sans-serif")
+    .text(x);
+
+    // Add Y axis label
+    svg.append("text")
+        .attr("class", "y-axis-label")
+        .attr("text-anchor", "middle")
+        .attr("transform", "rotate(-90)") // Rotate for vertical text
+        .attr("x", -height / 2 + 35) // Note: negative because of rotation
+        .attr("y", 15) // Position to the left of the y-axis
+        .style("font-size", "14px")
+        .style("font-family", "sans-serif")
+        .text(y);
+
     let places = [
         {place: 'Tokyo', path:'data/tokyo/tokyo_wards.json', subunit:'Ward'},
         {place: 'London', path:'data/london/london_boroughs.json', subunit: 'Borough'},
@@ -160,10 +181,37 @@ async function renderPlot(x, y) {
             rows
         );
     };
-    const categories = places.map(d => d.category);
     const colorScale = d3.scaleOrdinal()
-        .domain(categories) // Set the domain to your unique categories
+        .domain(places.map(d => d.place)) // Set the domain to your unique categories
         .range(d3.schemeAccent);
+    const legendGroup = svg.append('g')
+        .attr('class', 'legend')
+        .attr('transform', 'translate(790, 0)'); // Position legend in top-left
+    
+    const legendItemHeight = 25;
+    const legendRectSize = 18;
+    
+    const legendItems = legendGroup.selectAll('.legend-item')
+        .data(places)
+        .enter()
+        .append('g')
+        .attr('class', 'legend-item')
+        .attr('transform', (d, i) => `translate(0, ${i * legendItemHeight})`);
+    
+    // Add colored rectangles
+    legendItems.append('rect')
+        .attr('width', legendRectSize)
+        .attr('height', legendRectSize)
+        .attr('fill', d => colorScale(d.place));
+    
+    // Add text labels
+    legendItems.append('text')
+        .attr('x', legendRectSize + 8)
+        .attr('y', legendRectSize / 2)
+        .attr('dy', '0.35em')
+        .style('font-size', '14px')
+        .style('font-family', 'sans-serif')
+        .text(d => d.place);
     for (const placePath of places) {
         let path = placePath.path;
         let wardMeta = null;
