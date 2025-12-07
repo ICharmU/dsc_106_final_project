@@ -517,6 +517,12 @@ async function createCityGridMap(config) {
       if (layer.id === "lc") {
         const lcCode = Math.round(v);
         val = landCoverTypes[lcCode] || `Class ${lcCode}`;
+        if (lcCode == 15 | lcCode == 16) {
+            val = 'Barren';
+        }
+        if (lcCode == 17) {
+            val = 'Water/Snow/Ice'
+        }
       }
       rows += `<span style="color:${active ? "#fff" : "#ccc"}">` +
         `${layer.label}: `+ val + `</span><br>`;
@@ -1367,7 +1373,7 @@ createMultiCityGridMap({
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
       cityName: "San Diego County",
-      subunit: "City",
+      subunit: "Neighborhood",
       layers: [
         {
           id: "ndvi",
@@ -1484,7 +1490,7 @@ createMultiCityGridMap({
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
       cityName: "San Diego County",
-      subunit: "City",
+      subunit: "Neighborhood",
       layers: [
         {
           id: "lst_day",
@@ -1674,7 +1680,7 @@ createMultiCityGridMap({
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
       cityName: "San Diego County",
-      subunit: "City",
+      subunit: "Neighborhood",
       layers: [
         {
           id: "ndvi",
@@ -1837,7 +1843,7 @@ createMultiCityGridMap({
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
       cityName: "San Diego County",
-      subunit: "City",
+      subunit: "Neighborhood",
       layers: [
         {
           id: "lc",
@@ -2028,7 +2034,7 @@ createMultiCityGridMap({
       gridPath: "data/san-diego/sandiego_grid.json",
       wardStatsPath: "data/san-diego/sandiego_boroughs.json",
       cityName: "San Diego County",
-      subunit: "City",
+      subunit: "Neighborhood",
       layers: [
         {
           id: "ndvi",

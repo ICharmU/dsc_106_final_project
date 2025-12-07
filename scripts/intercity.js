@@ -142,7 +142,7 @@ async function renderPlot(x, y) {
         {place: 'Tokyo', path:'data/tokyo/tokyo_wards.json', subunit:'Ward'},
         {place: 'London', path:'data/london/london_boroughs.json', subunit: 'Borough'},
         {place: 'New York City', path:'data/nyc/nyc_boroughs.json', subunit: 'Borough'},
-        {place: 'San Diego County', path:'data/san-diego/sandiego_boroughs.json', subunit: 'City'}
+        {place: 'San Diego County', path:'data/san-diego/sandiego_boroughs.json', subunit: 'Neighborhood'}
     ];
     const defaultTooltipFormatter = ({ place, ward, ndvi, dlst, nlst, lc, subunit}) => {
         const wardLine = `${subunit}: ${ward}<br>`;
