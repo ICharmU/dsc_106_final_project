@@ -537,16 +537,18 @@ async function createCityGridMap(config) {
   const safeContainerId = containerId.replace(/[^a-zA-Z0-9_-]/g, "");
   const gradientId = `grid-layer-gradient-${safeContainerId}`;
 
+  // Position legend: bivariate centered between wall and map, univariate 10px left of map
+  const legendLeft = bivariate ? xOffset / 2 : xOffset - 10;
+  const legendTransform = bivariate ? "translate(-50%, -50%)" : "translate(-100%, -50%)";
+
   // Create a container div for the legend that can be rebuilt as needed
   const legendContainer = container.append("div")
     .attr("class", "legend-container")
     .style("position", "absolute")
-    .style("left", legendMargin + "px")
-    .style("bottom", legendMargin + "px")
-    .style("background", "rgba(255,255,255,0.9)")
-    .style("padding", "8px")
-    .style("border-radius", "4px")
-    .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+    .style("left", `${legendLeft}px`)
+    .style("top", "50%")
+    .style("transform", legendTransform)
+    .style("padding", "0px")
     .style("max-height", "300px")
     .style("overflow-y", "auto");
 
@@ -744,9 +746,19 @@ async function createCityGridMap(config) {
       // Create continuous bivariate legend with gradient
       const legendSize = 120;
       
+      // Reduce padding to minimize empty space
+      const svgPadding = 100;
+      const svgSize = legendSize + svgPadding;
+      const centerOffset = svgSize / 2;
+      
+      // SVG size to accommodate rotation and text labels
       const legendSvg = legendContainer.append("svg")
-        .attr("width", legendSize + 80)
-        .attr("height", legendSize + 80);
+        .attr("width", svgSize)
+        .attr("height", svgSize);
+      
+      // Create a group for the rotated legend
+      const legendGroup = legendSvg.append("g")
+        .attr("transform", `translate(${centerOffset}, ${centerOffset}) rotate(-45)`);
       
       // For bivariate legend, use same palette logic as main visualization
       let legendPalette1, legendPalette2;
@@ -783,9 +795,9 @@ async function createCityGridMap(config) {
             layer1.min, layer1.max, layer2.min, layer2.max
           );
           
-          legendSvg.append("rect")
-            .attr("x", j * cellSize + 40)
-            .attr("y", (gridResolution - 1 - i) * cellSize + 10)
+          legendGroup.append("rect")
+            .attr("x", j * cellSize - legendSize / 2)
+            .attr("y", (gridResolution - 1 - i) * cellSize - legendSize / 2)
             .attr("width", cellSize)
             .attr("height", cellSize)
             .attr("fill", color)
@@ -795,64 +807,114 @@ async function createCityGridMap(config) {
       }
       
       // Add border around gradient
-      legendSvg.append("rect")
-        .attr("x", 40)
-        .attr("y", 10)
+      legendGroup.append("rect")
+        .attr("x", -legendSize / 2)
+        .attr("y", -legendSize / 2)
         .attr("width", legendSize)
         .attr("height", legendSize)
         .attr("fill", "none")
         .attr("stroke", "#999")
         .attr("stroke-width", 1);
       
-      // Add axis labels
+      const centerX = svgSize / 2;
+      const centerY = svgSize / 2;
+      const diagonal = legendSize * 0.707; // Distance from center to corner after rotation
+      
+      // Calculate diamond tip positions after -45 degree rotation
+      // Bottom tip: (centerX, centerY + diagonal)
+      // Right tip: (centerX + diagonal, centerY)
+      // Left tip: (centerX - diagonal, centerY)
+      
+      const bottomTipX = centerX;
+      const bottomTipY = centerY + diagonal;
+      const rightTipX = centerX + diagonal;
+      const rightTipY = centerY;
+      const leftTipX = centerX - diagonal;
+      const leftTipY = centerY;
+      
+      // Low/High labels for Variable 2 (bottom-right edge)
+      // Start from bottom tip, move along edge toward right tip
+      // Angled at 45 degrees (perpendicular to -45 degree edge)
+      
+      // Low: near bottom tip (starting point) - align start of text
+      const offsetDistance = 15; // Distance away from the edge
       legendSvg.append("text")
-        .attr("x", legendSize / 2 + 40)
-        .attr("y", legendSize + 45)
+        .attr("x", bottomTipX + diagonal * 0.1)
+        .attr("y", bottomTipY - diagonal * 0.1 + offsetDistance)
+        .attr("text-anchor", "start")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .attr("transform", `rotate(-45, ${bottomTipX + diagonal * 0.1}, ${bottomTipY - diagonal * 0.1 + offsetDistance})`)
+        .text("Low");
+      
+      // High: near right tip (ending point) - align start of text
+      legendSvg.append("text")
+        .attr("x", rightTipX - diagonal * 0.1)
+        .attr("y", rightTipY + diagonal * 0.1 + offsetDistance)
+        .attr("text-anchor", "start")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .attr("transform", `rotate(-45, ${rightTipX - diagonal * 0.1}, ${rightTipY + diagonal * 0.1 + offsetDistance})`)
+        .text("High");
+      
+      // Variable 2 axis label (bottom-right edge) - angled at -45 degrees, below High/Low
+      // Position orthogonally from midpoint of bottom-right edge
+      const axisOffsetDistance = offsetDistance + 15; // Extra distance below Low/High labels
+      const midBottomRightX = (bottomTipX + rightTipX) / 2;
+      const midBottomRightY = (bottomTipY + rightTipY) / 2;
+      // Move perpendicular to edge (down-right for bottom-right edge at -45°)
+      const axis2X = midBottomRightX + axisOffsetDistance * Math.cos(Math.PI / 4);
+      const axis2Y = midBottomRightY + axisOffsetDistance * Math.sin(Math.PI / 4);
+      
+      legendSvg.append("text")
+        .attr("x", axis2X)
+        .attr("y", axis2Y)
         .attr("text-anchor", "middle")
         .attr("font-size", 10)
         .attr("fill", "#333")
+        .attr("transform", `rotate(-45, ${axis2X}, ${axis2Y})`)
         .text(layer2.label.split(" (")[0]);
       
+      // Low/High labels for Variable 1 (bottom-left edge)
+      // Start from bottom tip, move along edge toward left tip
+      // Angled at -45 degrees (perpendicular to 45 degree edge)
+      
+      // Low: near bottom tip (starting point) - align end of text
       legendSvg.append("text")
-        .attr("x", 10)
-        .attr("y", legendSize / 2 + 10)
+        .attr("x", bottomTipX - diagonal * 0.1)
+        .attr("y", bottomTipY - diagonal * 0.1 + offsetDistance)
+        .attr("text-anchor", "end")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .attr("transform", `rotate(45, ${bottomTipX - diagonal * 0.1}, ${bottomTipY - diagonal * 0.1 + offsetDistance})`)
+        .text("Low");
+      
+      // High: near left tip (ending point) - align end of text
+      legendSvg.append("text")
+        .attr("x", leftTipX + diagonal * 0.1)
+        .attr("y", leftTipY + diagonal * 0.1 + offsetDistance)
+        .attr("text-anchor", "end")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .attr("transform", `rotate(45, ${leftTipX + diagonal * 0.1}, ${leftTipY + diagonal * 0.1 + offsetDistance})`)
+        .text("High");
+      
+      // Variable 1 axis label (bottom-left edge) - angled at 45 degrees, below High/Low
+      // Position orthogonally from midpoint of bottom-left edge
+      const midBottomLeftX = (bottomTipX + leftTipX) / 2;
+      const midBottomLeftY = (bottomTipY + leftTipY) / 2;
+      // Move perpendicular to edge (down-left for bottom-left edge at 45°)
+      const axis1X = midBottomLeftX - axisOffsetDistance * Math.cos(Math.PI / 4);
+      const axis1Y = midBottomLeftY + axisOffsetDistance * Math.sin(Math.PI / 4);
+      
+      legendSvg.append("text")
+        .attr("x", axis1X)
+        .attr("y", axis1Y)
         .attr("text-anchor", "middle")
         .attr("font-size", 10)
         .attr("fill", "#333")
-        .attr("transform", `rotate(-90, 10, ${legendSize / 2 + 10})`)
+        .attr("transform", `rotate(45, ${axis1X}, ${axis1Y})`)
         .text(layer1.label.split(" (")[0]);
-      
-      // Add "Low" and "High" labels
-      legendSvg.append("text")
-        .attr("x", 40)
-        .attr("y", legendSize + 30)
-        .attr("font-size", 9)
-        .attr("fill", "#666")
-        .text("Low");
-      
-      legendSvg.append("text")
-        .attr("x", legendSize + 40)
-        .attr("y", legendSize + 30)
-        .attr("text-anchor", "end")
-        .attr("font-size", 9)
-        .attr("fill", "#666")
-        .text("High");
-      
-      legendSvg.append("text")
-        .attr("x", 30)
-        .attr("y", legendSize + 15)
-        .attr("text-anchor", "end")
-        .attr("font-size", 9)
-        .attr("fill", "#666")
-        .text("Low");
-      
-      legendSvg.append("text")
-        .attr("x", 30)
-        .attr("y", 20)
-        .attr("text-anchor", "end")
-        .attr("font-size", 9)
-        .attr("fill", "#666")
-        .text("High");
       
       return;
     }
@@ -974,9 +1036,10 @@ async function createCityGridMap(config) {
           .text(cat.label);
       });
     } else {
-      // Continuous legend (existing behavior)
-      const legendWidth = 210;
-      const legendHeight = 10;
+      // Continuous legend (vertical orientation)
+      const legendWidth = 10;
+      const legendHeight = 210;
+      const textWidth = 50;
 
       const legendTitle = legendContainer.append("div")
         .style("font-size", "11px")
@@ -987,14 +1050,14 @@ async function createCityGridMap(config) {
         .text(activeLayer.label);
 
       const legendSvg = legendContainer.append("svg")
-        .attr("width", legendWidth)
-        .attr("height", legendHeight + 20);
+        .attr("width", textWidth + legendWidth + 5)
+        .attr("height", legendHeight);
 
       const legendDefs = legendSvg.append("defs");
       const gradient = legendDefs.append("linearGradient")
         .attr("id", gradientId)
-        .attr("x1", "0%").attr("x2", "100%")
-        .attr("y1", "0%").attr("y2", "0%");
+        .attr("x1", "0%").attr("x2", "0%")
+        .attr("y1", "100%").attr("y2", "0%");
 
       const stops = 20;
       for (let i = 0; i <= stops; i++) {
@@ -1006,25 +1069,30 @@ async function createCityGridMap(config) {
       }
 
       legendSvg.append("rect")
-        .attr("x", 0)
+        .attr("x", textWidth)
         .attr("y", 0)
         .attr("width", legendWidth)
         .attr("height", legendHeight)
         .attr("fill", `url(#${gradientId})`);
 
       legendSvg.append("text")
-        .attr("x", 0)
-        .attr("y", legendHeight + 14)
-        .attr("font-size", 10)
-        .attr("fill", "#333")
-        .text((activeLayer.min.toFixed(1) === "-0.0" ? "0.0" : activeLayer.min.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
-
-      legendSvg.append("text")
-        .attr("x", legendWidth)
-        .attr("y", legendHeight + 14)
+        .attr("x", textWidth - 5)
+        .attr("y", legendHeight)
+        .attr("dy", "-0.5em")
         .attr("font-size", 10)
         .attr("fill", "#333")
         .attr("text-anchor", "end")
+        .attr("dominant-baseline", "middle")
+        .text((activeLayer.min.toFixed(1) === "-0.0" ? "0.0" : activeLayer.min.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+
+      legendSvg.append("text")
+        .attr("x", textWidth - 5)
+        .attr("y", 0)
+        .attr("dy", "0.5em")
+        .attr("font-size", 10)
+        .attr("fill", "#333")
+        .attr("text-anchor", "end")
+        .attr("dominant-baseline", "middle")
         .text((activeLayer.max.toFixed(1) === "-0.0" ? "0.0" : activeLayer.max.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
     }
 
