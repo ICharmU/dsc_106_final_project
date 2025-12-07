@@ -15,21 +15,86 @@ const landCoverTypes = {
     13: 'Urban and Built-up Lands',
     14: 'Cropland/Natural Vegetation Mosaics',
     15: 'Permanent Snow and Ice',
-    16: 'Barren',
-    17: 'Water Bodies'
+    16: 'Water Bodies',
+    17: 'Barren'
 };
 
-// Generate land cover categories for legend
+// Land cover groupings for legend with custom colors
+const landCoverGroups = {
+  'Various Forests': { values: [1, 2, 3, 4, 5], color: '#1c861cff' },      
+  'Grasslands': { values: [6, 7, 8, 9, 10], color: '#6ab51aff' },          
+  'Wetlands': { values: [11], color: '#46987aff' },                       
+  'Croplands': { values: [12, 14], color: '#FFD700' },                 
+  'Urban': { values: [13], color: '#808080' },                          
+  'Water/Ice/Barren': { values: [15, 16, 17], color: '#246bb2ff' },           
+};
+
+// Helper function to generate shades around a base color
+function generateColorShades(baseColor, count) {
+  // Parse the base color
+  const color = d3.color(baseColor);
+  const hsl = d3.hsl(color);
+  
+  if (count === 1) return [baseColor];
+  
+  // Generate shades by varying lightness
+  const shades = [];
+  const lightnessRange = 0.02; // Range to vary lightness (±15%)
+  
+  for (let i = 0; i < count; i++) {
+    const offset = (i / (count - 1) - 0.5) * 2 * lightnessRange; // -0.15 to +0.15
+    const newLightness = Math.max(0, Math.min(1, hsl.l + offset));
+    const shade = d3.hsl(hsl.h, hsl.s, newLightness);
+    shades.push(shade.formatHex());
+  }
+  
+  return shades;
+}
+
+// Build discrete color map for all land cover values
+function buildLandCoverColorMap() {
+  const colorMap = {};
+  
+  for (const [groupLabel, groupData] of Object.entries(landCoverGroups)) {
+    const values = groupData.values;
+    const shades = generateColorShades(groupData.color, values.length);
+    
+    values.forEach((value, index) => {
+      colorMap[value] = shades[index];
+    });
+  }
+  
+  return colorMap;
+}
+
+const landCoverColorMap = buildLandCoverColorMap();
+
+// Generate land cover categories for legend (grouped)
 function getLandCoverCategories(min, max, palette) {
   const categories = [];
+  const presentValues = new Set();
+  
+  // Collect all present land cover values in the data
   for (let value = Math.ceil(min); value <= Math.floor(max); value++) {
-    if (landCoverTypes[value] && value > 0) { // Skip "No Data"
+    if (landCoverTypes[value] && value > 0) {
+      presentValues.add(value);
+    }
+  }
+  
+  // Build grouped categories
+  for (const [groupLabel, groupData] of Object.entries(landCoverGroups)) {
+    // Check if any values from this group are present
+    const groupValues = groupData.values.filter(v => presentValues.has(v));
+    if (groupValues.length > 0) {
       categories.push({
-        value: value,
-        label: landCoverTypes[value]
+        value: groupValues[0],
+        label: groupLabel,
+        color: groupData.color,
+        groupValues: groupValues
       });
     }
   }
+  
   return categories;
 }
 
@@ -436,6 +501,9 @@ async function createCityGridMap(config) {
     const colorScale = d3.scaleSequential(activeLayer.palette)
       .domain([activeLayer.min, activeLayer.max]);
 
+    // Check if this is a land cover layer
+    const isLandCover = activeLayer.id === "lc" || activeLayer.label === "Land Cover Type (grouped)";
+
     const sel = animate
       ? rects.transition().duration(350)
       : rects;
@@ -445,6 +513,31 @@ async function createCityGridMap(config) {
         const v = activeLayer.values[d.idx];
         const hasValue = v != null && Number.isFinite(v);
 
+        // Use discrete color map for land cover
+        if (isLandCover && hasValue) {
+          const lcValue = Math.round(v);
+          const discreteColor = landCoverColorMap[lcValue];
+          
+          // For cities with vertical flip or Tokyo: distinguish foreground from background
+          if (isTokyo || needsFullVerticalFlip) {
+            if (!d.wardId) {
+              // Background pixels with adjustable opacity
+              if (!discreteColor) {
+                return "rgba(235,235,235,0.9)";
+              }
+              const c = d3.color(discreteColor);
+              c.opacity = backgroundOpacity;
+              return c;
+            }
+            // Foreground/ward pixels get full opacity
+            return discreteColor || "#f0f0f0";
+          }
+          
+          // For other cities: no foreground/background distinction
+          return discreteColor || "rgba(235,235,235,0.9)";
+        }
+
+        // For non-land-cover layers, use continuous color scale
         // For cities with vertical flip or Tokyo: distinguish foreground (wardId > 0) from background (wardId = 0)
         if (isTokyo || needsFullVerticalFlip) {
           if (!d.wardId) {
@@ -476,17 +569,18 @@ async function createCityGridMap(config) {
 
     if (activeLayer.categories) {
       // Categorical legend (e.g., Land Cover Type)
+      const isLandCover = activeLayer.id === "lc" || activeLayer.label === "Land Cover Type";
       const legendTitle = legendContainer.append("div")
         .style("font-size", "11px")
         .style("font-weight", "bold")
         .style("margin-bottom", "6px")
         .style("color", "#333")
-        .text(activeLayer.label);
+        .text(isLandCover ? activeLayer.label + " (grouped)" : activeLayer.label);
 
       const categoriesContainer = legendContainer.append("div")
         .style("display", "flex")
         .style("flex-direction", "column")
-        .style("gap", "3px");
+        .style("gap", "1px");
 
       activeLayer.categories.forEach(cat => {
         const item = categoriesContainer.append("div")
@@ -497,7 +591,7 @@ async function createCityGridMap(config) {
         item.append("div")
           .style("width", "16px")
           .style("height", "16px")
-          .style("background-color", colorScale(cat.value))
+          .style("background-color", cat.color || colorScale(cat.value))
           .style("border", "1px solid #ccc")
           .style("flex-shrink", "0");
 
@@ -550,7 +644,7 @@ async function createCityGridMap(config) {
         .attr("y", legendHeight + 14)
         .attr("font-size", 10)
         .attr("fill", "#333")
-        .text(activeLayer.min.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+        .text((activeLayer.min.toFixed(1) === "-0.0" ? "0.0" : activeLayer.min.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
 
       legendSvg.append("text")
         .attr("x", legendWidth)
@@ -558,7 +652,7 @@ async function createCityGridMap(config) {
         .attr("font-size", 10)
         .attr("fill", "#333")
         .attr("text-anchor", "end")
-        .text(activeLayer.max.toFixed(1) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+        .text((activeLayer.max.toFixed(1) === "-0.0" ? "0.0" : activeLayer.max.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
     }
 
     // Broadcast layer change so other components (like ward comparison) can react
