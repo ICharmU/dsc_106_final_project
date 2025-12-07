@@ -265,43 +265,35 @@ async function createCityGridMap(config) {
     .attr("pointer-events", "none")
     .attr("filter", "url(#wardShadowGrid)");
 
+  // Generate borders based on the pixels' assigned wardIds
+  // For flipped cities, pixels have already been assigned flipped wardIds
+  // So we compare neighbors in the normal grid and draw at normal positions
   for (let row = 0; row < rasterHeight; row++) {
     for (let col = 0; col < rasterWidth; col++) {
       const idx = row * rasterWidth + col;
-      const wId = wardIds[idx];
+      const wId = pixels[idx].wardId;
       if (!wId) continue;
 
-      // Apply flipping for city-specific transformations
-      let displayRow = row;
-      let displayCol = col;
-      
-      if (isTokyo) {
-        displayRow = rasterHeight - 1 - row;
-        // No horizontal flip for borders
-      } else if (needsFullVerticalFlip) {
-        displayRow = rasterHeight - 1 - row;
-      }
-
-      // right edge
+      // right edge - compare with neighbor to the right
       if (col < rasterWidth - 1) {
-        const wRight = wardIds[idx + 1];
+        const wRight = pixels[idx + 1].wardId;
         if (wRight !== wId) {
-          const x  = xOffset + (displayCol + 1) * cellWidth;
-          const y1 = yOffset + displayRow * cellHeight;
-          const y2 = yOffset + (displayRow + 1) * cellHeight;
+          const x  = xOffset + (col + 1) * cellWidth;
+          const y1 = yOffset + row * cellHeight;
+          const y2 = yOffset + (row + 1) * cellHeight;
           borderG.append("line")
             .attr("x1", x).attr("y1", y1)
             .attr("x2", x).attr("y2", y2);
         }
       }
 
-      // bottom edge
+      // bottom edge - compare with neighbor below
       if (row < rasterHeight - 1) {
-        const wDown = wardIds[idx + rasterWidth];
+        const wDown = pixels[idx + rasterWidth].wardId;
         if (wDown !== wId) {
-          const y  = yOffset + (displayRow + 1) * cellHeight;
-          const x1 = xOffset + displayCol * cellWidth;
-          const x2 = xOffset + (displayCol + 1) * cellWidth;
+          const y  = yOffset + (row + 1) * cellHeight;
+          const x1 = xOffset + col * cellWidth;
+          const x2 = xOffset + (col + 1) * cellWidth;
           borderG.append("line")
             .attr("x1", x1).attr("y1", y)
             .attr("x2", x2).attr("y2", y);
