@@ -102,6 +102,56 @@ function getLandCoverCategories(min, max, palette) {
 // Session-level variable to remember the last selected layer ID across city switches
 let sessionActiveLayerId = null;
 
+// Bivariate color scheme generator - DISCRETE 4x4 grid using variable palettes
+function createBivariateColorScale(palette1, palette2) {
+  return function(value1, value2, min1, max1, min2, max2) {
+    // Normalize values to 0-1 range
+    const norm1 = Math.max(0, Math.min(1, (value1 - min1) / (max1 - min1)));
+    const norm2 = Math.max(0, Math.min(1, (value2 - min2) / (max2 - min2)));
+    
+    // Map to 4x4 discrete grid (0-3 for each dimension)
+    const bin1 = Math.min(3, Math.floor(norm1 * 4));
+    const bin2 = Math.min(3, Math.floor(norm2 * 4));
+    
+    // Get colors from center of each bin
+    const binCenter1 = (bin1 + 0.5) / 4;
+    const binCenter2 = (bin2 + 0.5) / 4;
+    
+    const color1 = palette1(binCenter1);
+    const color2 = palette2(binCenter2);
+    
+    // Use LAB color space for perceptually uniform blending
+    const lab1 = d3.lab(color1);
+    const lab2 = d3.lab(color2);
+    
+    // Blend in LAB space for better color mixing
+    const blendedL = (lab1.l + lab2.l) / 2;
+    const blendedA = (lab1.a + lab2.a) / 2;
+    const blendedB = (lab1.b + lab2.b) / 2;
+    
+    return d3.lab(blendedL, blendedA, blendedB).toString();
+  };
+}
+
+// Custom high-contrast color palettes for bivariate visualization
+function createBrightGreenPalette() {
+  return function(t) {
+    // Pure blue gradient for vegetation: light blue to deep blue
+    const colors = ['#eff3ff', '#6baed6', '#2171b5', '#08306b'];
+    const index = Math.min(3, Math.floor(t * 4));
+    return colors[index];
+  };
+}
+
+function createBrightOrangePalette() {
+  return function(t) {
+    // Pure red gradient for temperature: light pink to deep red
+    const colors = ['#fee5d9', '#fc9272', '#de2d26', '#a50f15'];
+    const index = Math.min(3, Math.floor(t * 4));
+    return colors[index];
+  };
+}
+
 async function createCityGridMap(config) {
   const {
     containerId,
@@ -113,6 +163,9 @@ async function createCityGridMap(config) {
     layers,                // array of layer defs 
     showLayerToggle = true,
     defaultActiveId = null,
+    
+    bivariate = false,     // enable bivariate mode
+    bivariateVars = null,  // { var1: "ndvi", var2: "lst_day" }
 
     tooltipFormatter = null, // optional custom formatter
     onReady = null,          // optional callback after draw
@@ -472,7 +525,6 @@ async function createCityGridMap(config) {
     .attr("class", "legend-container")
     .style("position", "absolute")
     .style("left", legendMargin + "px")
-
     .style("bottom", legendMargin + "px")
     .style("background", "rgba(255,255,255,0.9)")
     .style("padding", "8px")
@@ -502,34 +554,312 @@ async function createCityGridMap(config) {
       .style("border-radius", "4px")
       .style("font-size", "12px");
 
-    buttons = controls.selectAll("button")
-      .data(layerStates, d => d.id)
-      .enter()
-      .append("button")
-      .text(d => (d.buttonLabel || d.label).split(" (")[0])
-      .style("border", "1px solid #ccc")
-      .style("padding", "2px 6px")
-      .style("border-radius", "3px")
-      .style("cursor", "pointer")
-      .style("background", d => d.id === activeLayerId ? "#333" : "#fff")
-      .style("color", d => d.id === activeLayerId ? "#fff" : "#333")
-      .on("click", (event, d) => {
-        if (d.id === activeLayerId) return;
-        activeLayerId = d.id;
-        activeLayer = d;
-        sessionActiveLayerId = d.id; // Remember for next city switch
-        updateLayer(true); // animate
+    if (bivariate) {
+      // Bivariate mode: two dropdowns for variable selection
+      // Include all layers (continuous + land cover) for Variable 1
+      const allLayers = layerStates;
+      const continuousLayers = layerStates.filter(l => l.id !== "lc");
+      
+      controls.append("span")
+        .style("margin-right", "4px")
+        .text("Variable 1:");
+      
+      const select1 = controls.append("select")
+        .style("padding", "2px 6px")
+        .style("border", "1px solid #ccc")
+        .style("border-radius", "3px")
+        .style("cursor", "pointer")
+        .style("font-size", "12px")
+        .on("change", function() {
+          bivariateVars.var1 = this.value;
+          
+          // If Land Cover is selected, force var2 to 'none'
+          if (bivariateVars.var1 === "lc") {
+            bivariateVars.var2 = "none";
+            select2.property("disabled", true).style("cursor", "not-allowed");
+            disabledIcon.style("display", "inline");
+          } else {
+            select2.property("disabled", false).style("cursor", "pointer");
+            disabledIcon.style("display", "none");
+            
+            // If var1 now matches var2, set var2 to 'none'
+            if (bivariateVars.var1 === bivariateVars.var2) {
+              bivariateVars.var2 = "none";
+            }
+          }
+          
+          // Refresh Variable 2 dropdown options
+          select2.selectAll("option.layer-option").remove();
+          select2.selectAll("option.layer-option")
+            .data(continuousLayers.filter(l => l.id !== bivariateVars.var1), d => d.id)
+            .enter()
+            .append("option")
+            .attr("class", "layer-option")
+            .attr("value", d => d.id)
+            .property("selected", d => d.id === bivariateVars.var2)
+            .text(d => d.label.split(" (")[0]);
+          
+          // Update the 'None' option selection state
+          select2.select("option[value='none']").property("selected", bivariateVars.var2 === "none");
+          
+          updateLayer(true);
+        });
+      
+      select1.selectAll("option")
+        .data(allLayers, d => d.id)
+        .enter()
+        .append("option")
+        .attr("value", d => d.id)
+        .property("selected", d => d.id === bivariateVars.var1)
+        .text(d => d.label.split(" (")[0]);
+      
+      controls.append("span")
+        .style("margin-left", "8px")
+        .style("margin-right", "4px")
+        .text("Variable 2:");
+      
+      // Add disabled indicator icon
+      const disabledIcon = controls.append("span")
+        .style("display", bivariateVars.var1 === "lc" ? "inline" : "none")
+        .style("margin-right", "4px")
+        .style("color", "#d32f2f")
+        .style("font-weight", "bold")
+        .style("cursor", "help")
+        .attr("title", "Land Cover Type cannot be combined with other variables")
+      
+      const select2 = controls.append("select")
+        .style("padding", "2px 6px")
+        .style("border", "1px solid #ccc")
+        .style("border-radius", "3px")
+        .style("cursor", bivariateVars.var1 === "lc" ? "not-allowed" : "pointer")
+        .style("font-size", "12px")
+        .property("disabled", bivariateVars.var1 === "lc")
+        .on("change", function() {
+          bivariateVars.var2 = this.value;
+          updateLayer(true);
+        });
+      
+      // Add 'None' option first
+      select2.append("option")
+        .attr("value", "none")
+        .property("selected", bivariateVars.var2 === "none")
+        .text("None");
+      
+      // Add other layers, excluding the currently selected var1
+      select2.selectAll("option.layer-option")
+        .data(continuousLayers.filter(l => l.id !== bivariateVars.var1), d => d.id)
+        .enter()
+        .append("option")
+        .attr("class", "layer-option")
+        .attr("value", d => d.id)
+        .property("selected", d => d.id === bivariateVars.var2)
+        .text(d => d.label.split(" (")[0]);
+      
+    } else {
+      // Standard mode: layer toggle buttons
+      buttons = controls.selectAll("button")
+        .data(layerStates, d => d.id)
+        .enter()
+        .append("button")
+        .text(d => (d.buttonLabel || d.label).split(" (")[0])
+        .style("border", "1px solid #ccc")
+        .style("padding", "2px 6px")
+        .style("border-radius", "3px")
+        .style("cursor", "pointer")
+        .style("background", d => d.id === activeLayerId ? "#333" : "#fff")
+        .style("color", d => d.id === activeLayerId ? "#fff" : "#333")
+        .on("click", (event, d) => {
+          if (d.id === activeLayerId) return;
+          activeLayerId = d.id;
+          activeLayer = d;
+          sessionActiveLayerId = d.id; // Remember for next city switch
+          updateLayer(true); // animate
 
-        buttons
-          .style("background", b => b.id === activeLayerId ? "#333" : "#fff")
-          .style("color", b => b.id === activeLayerId ? "#fff" : "#333");
-      });
+          buttons
+            .style("background", b => b.id === activeLayerId ? "#333" : "#fff")
+            .style("color", b => b.id === activeLayerId ? "#fff" : "#333");
+        });
+    }
   }
 
   // ---------- 11. Apply active layer (colors + legend) ----------
   function updateLayer(animate = false, fadeInBackground = false) {
-    if (!activeLayer) return;
+    if (!activeLayer && !bivariate) return;
 
+    // Bivariate mode
+    if (bivariate && bivariateVars) {
+      // If Variable 2 is 'none', fall back to univariate mode
+      if (bivariateVars.var2 === "none") {
+        activeLayer = layerStates.find(l => l.id === bivariateVars.var1);
+        if (!activeLayer) {
+          console.error("Variable 1 layer not found");
+          return;
+        }
+        // Fall through to univariate rendering below
+      } else {
+        const layer1 = layerStates.find(l => l.id === bivariateVars.var1);
+        const layer2 = layerStates.find(l => l.id === bivariateVars.var2);
+        
+        if (!layer1 || !layer2) {
+          console.error("Bivariate layers not found");
+          return;
+        }
+        
+        // For bivariate display, use bright color palettes with high contrast
+        // Use custom bright greens for vegetation, bright oranges for temperature
+        const bivariatePalette1 = (layer1.id === 'lst_day' || layer1.id === 'lst_night') 
+          ? createBrightOrangePalette() 
+          : createBrightGreenPalette();
+        const bivariatePalette2 = (layer2.id === 'lst_day' || layer2.id === 'lst_night') 
+          ? createBrightOrangePalette() 
+          : createBrightGreenPalette();
+      
+      const bivariateColor = createBivariateColorScale(bivariatePalette1, bivariatePalette2);
+      
+      const sel = animate
+        ? rects.transition().duration(350)
+        : rects;
+      
+      sel.attr("fill", d => {
+        const v1 = layer1.values[d.idx];
+        const v2 = layer2.values[d.idx];
+        const hasValue = v1 != null && Number.isFinite(v1) && v2 != null && Number.isFinite(v2);
+        
+        if (!hasValue) {
+          return (isTokyo || needsFullVerticalFlip) ? "#ebebeb" : "rgba(235,235,235,0.9)";
+        }
+        
+        return bivariateColor(v1, v2, layer1.min, layer1.max, layer2.min, layer2.max);
+      })
+      .attr("fill-opacity", 1.0);
+      
+      // Handle background group opacity with CSS transitions
+      if (isTokyo || needsFullVerticalFlip) {
+        if (fadeInBackground) {
+          backgroundG.style("opacity", 1.0);
+          borderG.style("opacity", 0);
+          setTimeout(() => {
+            backgroundG.style("opacity", backgroundOpacity);
+            borderG.style("opacity", 1.0);
+          }, 100);
+        } else {
+          backgroundG.style("opacity", backgroundOpacity);
+          borderG.style("opacity", 1.0);
+        }
+      }
+      
+      // Update legend for bivariate
+      legendContainer.selectAll("*").remove();
+      
+      // Create continuous bivariate legend with gradient
+      const legendSize = 120;
+      
+      const legendSvg = legendContainer.append("svg")
+        .attr("width", legendSize + 80)
+        .attr("height", legendSize + 80);
+      
+      // For bivariate legend, use bright color palettes with high contrast
+      const legendPalette1 = (layer1.id === 'lst_day' || layer1.id === 'lst_night') 
+        ? createBrightOrangePalette() 
+        : createBrightGreenPalette();
+      const legendPalette2 = (layer2.id === 'lst_day' || layer2.id === 'lst_night') 
+        ? createBrightOrangePalette() 
+        : createBrightGreenPalette();
+      
+      const legendBivariateColor = createBivariateColorScale(legendPalette1, legendPalette2);
+      
+      // Create 4x4 discrete grid
+      const gridResolution = 4;
+      const cellSize = legendSize / gridResolution;
+      
+      for (let i = 0; i < gridResolution; i++) {
+        for (let j = 0; j < gridResolution; j++) {
+          // Calculate color for this bin using center of bin
+          const norm1 = (i + 0.5) / gridResolution;
+          const norm2 = (j + 0.5) / gridResolution;
+          
+          const color = legendBivariateColor(
+            layer1.min + norm1 * (layer1.max - layer1.min),
+            layer2.min + norm2 * (layer2.max - layer2.min),
+            layer1.min, layer1.max, layer2.min, layer2.max
+          );
+          
+          legendSvg.append("rect")
+            .attr("x", j * cellSize + 40)
+            .attr("y", (gridResolution - 1 - i) * cellSize + 10)
+            .attr("width", cellSize)
+            .attr("height", cellSize)
+            .attr("fill", color)
+            .attr("stroke", "#999")
+            .attr("stroke-width", 0.5);
+        }
+      }
+      
+      // Add border around gradient
+      legendSvg.append("rect")
+        .attr("x", 40)
+        .attr("y", 10)
+        .attr("width", legendSize)
+        .attr("height", legendSize)
+        .attr("fill", "none")
+        .attr("stroke", "#999")
+        .attr("stroke-width", 1);
+      
+      // Add axis labels
+      legendSvg.append("text")
+        .attr("x", legendSize / 2 + 40)
+        .attr("y", legendSize + 45)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 10)
+        .attr("fill", "#333")
+        .text(layer2.label.split(" (")[0]);
+      
+      legendSvg.append("text")
+        .attr("x", 10)
+        .attr("y", legendSize / 2 + 10)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 10)
+        .attr("fill", "#333")
+        .attr("transform", `rotate(-90, 10, ${legendSize / 2 + 10})`)
+        .text(layer1.label.split(" (")[0]);
+      
+      // Add "Low" and "High" labels
+      legendSvg.append("text")
+        .attr("x", 40)
+        .attr("y", legendSize + 30)
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .text("Low");
+      
+      legendSvg.append("text")
+        .attr("x", legendSize + 40)
+        .attr("y", legendSize + 30)
+        .attr("text-anchor", "end")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .text("High");
+      
+      legendSvg.append("text")
+        .attr("x", 30)
+        .attr("y", legendSize + 15)
+        .attr("text-anchor", "end")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .text("Low");
+      
+      legendSvg.append("text")
+        .attr("x", 30)
+        .attr("y", 20)
+        .attr("text-anchor", "end")
+        .attr("font-size", 9)
+        .attr("fill", "#666")
+        .text("High");
+        
+        return;
+      }
+    }
+
+    // Standard univariate mode
     const colorScale = d3.scaleSequential(activeLayer.palette)
       .domain([activeLayer.min, activeLayer.max]);
 
@@ -792,7 +1122,9 @@ async function createMultiCityGridMap(config) {
   const {
     containerId,
     cityConfigs,           // [{ id, label, gridPath, wardStatsPath, cityName, layers, ... }]
-    defaultCityId = null
+    defaultCityId = null,
+    bivariate = false,     // enable bivariate mode
+    bivariateVars = null   // { var1: "ndvi", var2: "lst_day" }
   } = config;
 
   if (!cityConfigs || !cityConfigs.length) {
@@ -892,7 +1224,9 @@ async function createMultiCityGridMap(config) {
       defaultActiveId: cityConf.defaultActiveId,
       tooltipFormatter: cityConf.tooltipFormatter,
       onReady: cityConf.onReady,
-      isInitialRender: true
+      isInitialRender: true,
+      bivariate: bivariate,
+      bivariateVars: bivariateVars
     });
   }
 
@@ -1705,3 +2039,203 @@ createMultiCityGridMap({
   ],
   defaultCityId: "london"
 }).catch(err => console.error("Error rendering heat inequality map:", err));
+
+// ------------------------------------------------------------------
+// Bivariate Analysis Maps
+// ------------------------------------------------------------------
+createMultiCityGridMap({
+  containerId: "#bivariateMap",
+  defaultCityId: "tokyo",
+  bivariate: true,
+  bivariateVars: { var1: "ndvi", var2: "lst_day" },
+  cityConfigs: [
+    {
+      id: "tokyo",
+      label: "Tokyo",
+      gridPath: "data/tokyo/tokyo_grid.json",
+      wardStatsPath: "data/tokyo/tokyo_wards.json",
+      cityName: "Tokyo",
+      subunit: "Ward",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "Vegetation",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "london",
+      label: "London",
+      gridPath: "data/london/london_grid.json",
+      wardStatsPath: "data/london/london_boroughs.json",
+      cityName: "London",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "Vegetation",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "nyc",
+      label: "New York City",
+      gridPath: "data/nyc/nyc_grid.json",
+      wardStatsPath: "data/nyc/nyc_boroughs.json",
+      cityName: "New York City",
+      subunit: "Borough",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "Vegetation",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        }
+      ],
+      showLayerToggle: true
+    },
+    {
+      id: "sandiego",
+      label: "San Diego County",
+      gridPath: "data/san-diego/sandiego_grid.json",
+      wardStatsPath: "data/san-diego/sandiego_boroughs.json",
+      cityName: "San Diego County",
+      subunit: "City",
+      layers: [
+        {
+          id: "ndvi",
+          valueKey: "ndvi",
+          minKey: "ndvi_min",
+          maxKey: "ndvi_max",
+          label: "Vegetation",
+          unit: "",
+          palette: d3.interpolateYlGn
+        },
+        {
+          id: "lst_day",
+          valueKey: "lst_day_C",
+          minKey: "lst_day_min",
+          maxKey: "lst_day_max",
+          label: "Daytime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateInferno
+        },
+        {
+          id: "lst_night",
+          valueKey: "lst_night_C",
+          minKey: "lst_night_min",
+          maxKey: "lst_night_max",
+          label: "Nighttime Temperature (°C)",
+          unit: "°C",
+          palette: d3.interpolateMagma
+        },
+        {
+          id: "lc",
+          valueKey: "lc",
+          minKey: "lc_min",
+          maxKey: "lc_max",
+          label: "Land Cover Type",
+          unit: "",
+          palette: d3.interpolateTurbo
+        }
+      ],
+      showLayerToggle: true
+    }
+  ]
+}).catch(err => console.error("Error rendering bivariate map:", err));
