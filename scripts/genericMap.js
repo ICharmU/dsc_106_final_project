@@ -26,7 +26,8 @@ const landCoverGroups = {
   'Wetlands': { values: [11], color: '#46987aff' },                       
   'Croplands': { values: [12, 14], color: '#FFD700' },                 
   'Urban': { values: [13], color: '#808080' },                          
-  'Water/Ice/Barren': { values: [15, 16, 17], color: '#246bb2ff' },           
+  'Water/Snow/Ice': { values: [17], color: '#246bb2ff' },    // Barren and Water Bodies were swapped during preprocessing
+  'Barren': { values: [15, 16], color: '#de8124ff' },           
 };
 
 // Helper function to generate shades around a base color
