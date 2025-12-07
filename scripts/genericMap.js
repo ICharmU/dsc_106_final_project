@@ -98,6 +98,9 @@ function getLandCoverCategories(min, max, palette) {
   return categories;
 }
 
+// Session-level variable to remember the last selected layer ID across city switches
+let sessionActiveLayerId = null;
+
 async function createCityGridMap(config) {
   const {
     containerId,
@@ -111,7 +114,8 @@ async function createCityGridMap(config) {
     defaultActiveId = null,
 
     tooltipFormatter = null, // optional custom formatter
-    onReady = null           // optional callback after draw
+    onReady = null,          // optional callback after draw
+    isInitialRender = false  // flag for city switch transitions
   } = config;
 
   const container = d3.select(containerId);
@@ -206,7 +210,8 @@ async function createCityGridMap(config) {
     return;
   }
 
-  let activeLayerId = defaultActiveId || layerStates[0].id;
+  // Use session memory for layer selection if available, otherwise use config default
+  let activeLayerId = sessionActiveLayerId || defaultActiveId || layerStates[0].id;
 
   // ---------- 3. Build pixel objects ----------
   const pixels = new Array(rasterWidth * rasterHeight);
@@ -330,15 +335,39 @@ async function createCityGridMap(config) {
 
   // ---------- 6. Pixel grid (draw once) ----------
   const pixelG = rootG.append("g").attr("class", "grid-pixels");
+  
+  // Create separate groups for background and foreground for smooth CSS transitions
+  const backgroundG = pixelG.append("g")
+    .attr("class", "background-pixels")
+    .style("transition", "opacity 2s ease-in-out");
+  
+  const foregroundG = pixelG.append("g")
+    .attr("class", "foreground-pixels");
 
-  const rects = pixelG.selectAll("rect")
-    .data(pixels)
+  // Separate pixels into background and foreground
+  const backgroundPixels = pixels.filter(d => !d.wardId);
+  const foregroundPixels = pixels.filter(d => d.wardId);
+
+  const backgroundRects = backgroundG.selectAll("rect")
+    .data(backgroundPixels)
     .enter()
     .append("rect")
     .attr("x", d => xOffset + d.col * cellWidth)
     .attr("y", d => yOffset + d.row * cellHeight)
     .attr("width", cellWidth + 0.01)
     .attr("height", cellHeight + 0.01);
+
+  const foregroundRects = foregroundG.selectAll("rect")
+    .data(foregroundPixels)
+    .enter()
+    .append("rect")
+    .attr("x", d => xOffset + d.col * cellWidth)
+    .attr("y", d => yOffset + d.row * cellHeight)
+    .attr("width", cellWidth + 0.01)
+    .attr("height", cellHeight + 0.01);
+  
+  // Combined selection for updateLayer function
+  const rects = pixelG.selectAll("rect");
 
   // ---------- 7. Ward borders (pixel-aligned) ----------
   // COMMENTED OUT - showing only background
@@ -349,7 +378,8 @@ async function createCityGridMap(config) {
     .attr("stroke-width", 0.8)
     .attr("fill", "none")
     .attr("pointer-events", "none")
-    .attr("filter", "url(#wardShadowGrid)");
+    .attr("filter", "url(#wardShadowGrid)")
+    .style("transition", "opacity 2s ease-in-out");
 
   // Generate borders based on the pixels' assigned wardIds
   // For flipped cities, pixels have already been assigned flipped wardIds
@@ -486,6 +516,7 @@ async function createCityGridMap(config) {
         if (d.id === activeLayerId) return;
         activeLayerId = d.id;
         activeLayer = d;
+        sessionActiveLayerId = d.id; // Remember for next city switch
         updateLayer(true); // animate
 
         buttons
@@ -495,7 +526,7 @@ async function createCityGridMap(config) {
   }
 
   // ---------- 11. Apply active layer (colors + legend) ----------
-  function updateLayer(animate = false) {
+  function updateLayer(animate = false, fadeInBackground = false) {
     if (!activeLayer) return;
 
     const colorScale = d3.scaleSequential(activeLayer.palette)
@@ -521,13 +552,8 @@ async function createCityGridMap(config) {
           // For cities with vertical flip or Tokyo: distinguish foreground from background
           if (isTokyo || needsFullVerticalFlip) {
             if (!d.wardId) {
-              // Background pixels with adjustable opacity
-              if (!discreteColor) {
-                return "rgba(235,235,235,0.9)";
-              }
-              const c = d3.color(discreteColor);
-              c.opacity = backgroundOpacity;
-              return c;
+              // Background pixels - use full opacity color (group opacity handles transparency)
+              return discreteColor || "#ebebeb";
             }
             // Foreground/ward pixels get full opacity
             return discreteColor || "#f0f0f0";
@@ -541,13 +567,11 @@ async function createCityGridMap(config) {
         // For cities with vertical flip or Tokyo: distinguish foreground (wardId > 0) from background (wardId = 0)
         if (isTokyo || needsFullVerticalFlip) {
           if (!d.wardId) {
-            // Background pixels with adjustable opacity
+            // Background pixels - use full opacity color (group opacity handles transparency)
             if (!hasValue) {
-              return "rgba(235,235,235,0.9)"; // No data background = light grey
+              return "#ebebeb"; // No data background = light grey
             }
-            const c = d3.color(colorScale(v));
-            c.opacity = backgroundOpacity;
-            return c;
+            return colorScale(v);
           }
           // Foreground/ward pixels get full opacity
           if (!hasValue) {
@@ -563,6 +587,26 @@ async function createCityGridMap(config) {
         return colorScale(v); // All pixels get full opacity colormap
       })
       .attr("fill-opacity", 1.0);
+
+    // Handle background group opacity with CSS transitions
+    if (isTokyo || needsFullVerticalFlip) {
+      if (fadeInBackground) {
+        // Set initial full opacity on background group
+        backgroundG.style("opacity", 1.0);
+        // Set initial zero opacity on borders
+        borderG.style("opacity", 0);
+        
+        // Trigger fade to target opacity after a brief delay
+        setTimeout(() => {
+          backgroundG.style("opacity", backgroundOpacity);
+          borderG.style("opacity", 1.0);
+        }, 100);
+      } else {
+        // Normal layer switch - just set the target opacity directly
+        backgroundG.style("opacity", backgroundOpacity);
+        borderG.style("opacity", 1.0);
+      }
+    }
 
     // Update legend based on whether this is a categorical layer
     legendContainer.selectAll("*").remove();
@@ -665,7 +709,7 @@ async function createCityGridMap(config) {
     }));
   }
 
-  updateLayer(false); // initial paint
+  updateLayer(false, isInitialRender); // initial paint
 
   // ---------- 12. Pixel hover (tooltips + wardHover event) ----------
   rects
@@ -846,7 +890,8 @@ async function createMultiCityGridMap(config) {
       showLayerToggle: cityConf.showLayerToggle ?? true,
       defaultActiveId: cityConf.defaultActiveId,
       tooltipFormatter: cityConf.tooltipFormatter,
-      onReady: cityConf.onReady
+      onReady: cityConf.onReady,
+      isInitialRender: true
     });
   }
 
