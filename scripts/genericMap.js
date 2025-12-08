@@ -543,9 +543,28 @@ async function createCityGridMap(config) {
   const safeContainerId = containerId.replace(/[^a-zA-Z0-9_-]/g, "");
   const gradientId = `grid-layer-gradient-${safeContainerId}`;
 
-  // Position legend: bivariate centered between wall and map, univariate 10px left of map
-  const legendLeft = bivariate ? xOffset / 2 : xOffset - 10;
-  const legendTransform = bivariate ? "translate(-50%, -50%)" : "translate(-100%, -50%)";
+  // Estimate legend widths
+  // For bivariate: legendSize=120, backgroundPadding=70, diagonal calculation
+  const bivariateLegendWidth = Math.ceil((120 + 70) * 1.414) + 10;
+  const univariateLegendWidth = 65; // textWidth + legendWidth + spacing
+  const legendWidth = bivariate ? bivariateLegendWidth : univariateLegendWidth;
+
+  // Position legend: centered between wall and map if space allows, otherwise constrained
+  let legendLeft, legendTransform;
+  
+  if (bivariate) {
+    // For bivariate: center between wall and map, but ensure it doesn't overflow left
+    const idealLeft = xOffset / 2;
+    const minLeft = legendWidth / 2 + 10; // 10px padding from left edge
+    legendLeft = Math.max(idealLeft, minLeft);
+    legendTransform = "translate(-50%, -50%)";
+  } else {
+    // For univariate: 10px left of map, but ensure it fits
+    const idealLeft = xOffset - 10;
+    const minLeft = legendWidth + 10; // Ensure full width visible with 10px padding
+    legendLeft = Math.max(idealLeft, minLeft);
+    legendTransform = "translate(-100%, -50%)";
+  }
 
   // Create a container div for the legend that can be rebuilt as needed
   const legendContainer = container.append("div")
@@ -554,7 +573,9 @@ async function createCityGridMap(config) {
     .style("left", `${legendLeft}px`)
     .style("top", "50%")
     .style("transform", legendTransform)
-    .style("padding", "0px")
+    .style("padding", bivariate ? "0px" : "8px")
+    .style("background", bivariate ? "transparent" : "white")
+    .style("border-radius", bivariate ? "0px" : "4px")
     .style("max-height", "300px")
     .style("overflow-y", "auto");
 
@@ -755,16 +776,38 @@ async function createCityGridMap(config) {
       // Reduce padding to minimize empty space
       const svgPadding = 100;
       const svgSize = legendSize + svgPadding;
-      const centerOffset = svgSize / 2;
+      
+      // Calculate background dimensions that will encompass legend and text
+      const backgroundPadding = 70;
+      const backgroundSize = legendSize + backgroundPadding;
+      
+      // When rotated 45°, the diagonal of the square becomes the height/width needed
+      // diagonal = side * sqrt(2) ≈ side * 1.414
+      const rotatedDiagonal = backgroundSize * 1.414;
+      
+      // Expand SVG to fit the rotated background with rounded corners
+      const expandedSvgSize = Math.ceil(rotatedDiagonal) + 10; // Add 10px buffer
+      const expandedCenterOffset = expandedSvgSize / 2;
       
       // SVG size to accommodate rotation and text labels
       const legendSvg = legendContainer.append("svg")
-        .attr("width", svgSize)
-        .attr("height", svgSize);
+        .attr("width", expandedSvgSize)
+        .attr("height", expandedSvgSize);
+      
+      // Add white background square rotated -45 degrees with rounded corners
+      legendSvg.append("rect")
+        .attr("x", expandedCenterOffset - backgroundSize / 2)
+        .attr("y", expandedCenterOffset - backgroundSize / 2)
+        .attr("width", backgroundSize)
+        .attr("height", backgroundSize)
+        .attr("rx", 12)
+        .attr("ry", 12)
+        .attr("fill", "white")
+        .attr("transform", `rotate(-45, ${expandedCenterOffset}, ${expandedCenterOffset})`);
       
       // Create a group for the rotated legend
       const legendGroup = legendSvg.append("g")
-        .attr("transform", `translate(${centerOffset}, ${centerOffset}) rotate(-45)`);
+        .attr("transform", `translate(${expandedCenterOffset}, ${expandedCenterOffset}) rotate(-45)`);
       
       // For bivariate legend, use same palette logic as main visualization
       let legendPalette1, legendPalette2;
@@ -822,8 +865,8 @@ async function createCityGridMap(config) {
         .attr("stroke", "#999")
         .attr("stroke-width", 1);
       
-      const centerX = svgSize / 2;
-      const centerY = svgSize / 2;
+      const centerX = expandedSvgSize / 2;
+      const centerY = expandedSvgSize / 2;
       const diagonal = legendSize * 0.707; // Distance from center to corner after rotation
       
       // Calculate diamond tip positions after -45 degree rotation
