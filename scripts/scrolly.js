@@ -352,7 +352,7 @@ async function initMainMap() {
             valueKey: "ndvi",
             minKey: "ndvi_min",
             maxKey: "ndvi_max",
-            label: "Greenness (Vegetation)",
+            label: "Vegetation",
             unit: "",
             palette: d3.interpolateYlGn
           },
@@ -432,8 +432,8 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "lst_night", label: "Nighttime LST" },
-        { id: "lst_day",   label: "Daytime LST" }
+        { id: "lst_night", label: "Nighttime Temp." },
+        { id: "lst_day",   label: "Daytime Temp." }
       ],
       "lst_night"
     );
@@ -459,8 +459,8 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "lst_night", label: "Nighttime LST" },
-        { id: "lst_day",   label: "Daytime LST" }
+        { id: "lst_night", label: "Nighttime Temp." },
+        { id: "lst_day",   label: "Daytime Temp." }
       ],
       "lst_day"
     );
@@ -486,9 +486,9 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "ndvi",      label: "Greenness (NDVI)" },
-        { id: "lst_day",   label: "Daytime LST" },
-        { id: "lst_night", label: "Nighttime LST" }
+        { id: "ndvi",      label: "Vegetation" },
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "lst_night", label: "Nighttime Temp." }
       ],
       "ndvi"
     );
@@ -515,9 +515,9 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "lst_day",   label: "Daytime LST" },
-        { id: "lst_night", label: "Nighttime LST" },
-        { id: "ndvi",      label: "NDVI" }
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "lst_night", label: "Nighttime Temp." },
+        { id: "ndvi",      label: "Vegetation" }
       ],
       "lst_day"
     );
@@ -542,9 +542,9 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "ndvi",      label: "Greenness (NDVI)" },
-        { id: "lst_day",   label: "Daytime LST" },
-        { id: "lst_night", label: "Nighttime LST" }
+        { id: "ndvi",      label: "Vegetation" },
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "lst_night", label: "Nighttime Temp." }
       ],
       "ndvi"
     );
@@ -568,8 +568,8 @@ const scenes = [
 
     setLayerControls(
       [
-        { id: "lst_day",   label: "Daytime LST" },
-        { id: "ndvi",      label: "NDVI" }
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "ndvi",      label: "Vegetation" }
       ],
       "lst_day"
     );
