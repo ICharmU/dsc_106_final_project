@@ -2629,9 +2629,16 @@ export async function createMultiCityGridMap(config) {
      * This re-renders the current city with the new mode.
      */
     async setBivariate(on, vars) {
-      bivariateMode = !!on;
+      const newMode = !!on;
+      const modeChanged = bivariateMode !== newMode;
+      
+      bivariateMode = newMode;
       if (vars) currentBivariateVars = vars;
-      await renderCurrentCity();
+      
+      // Only re-render if the mode actually changed
+      if (modeChanged) {
+        await renderCurrentCity();
+      }
     },
 
     /**

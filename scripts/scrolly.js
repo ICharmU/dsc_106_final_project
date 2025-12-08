@@ -397,6 +397,7 @@ const scenes = [
   // 0: Hook – London, nighttime heat, no extra controls
   () => {
     setSceneText(0);
+    mapController.setBivariate(false);
     mapController.setCity("london");
     mapController.setLayer("lst_night", { animate: true, fadeInBackground: true });
     mapController.setTempUnit("C");
@@ -418,6 +419,7 @@ const scenes = [
   // 1: Intra-city inequality – wardCompare visible
   () => {
     setSceneText(1);
+    mapController.setBivariate(false);
     mapController.setCity("london");
     mapController.setLayer("lst_night", { animate: false });
     mapController.setTempUnit("C");
@@ -445,6 +447,7 @@ const scenes = [
   // 2: Day vs night heat (still London)
   () => {
     setSceneText(2);
+    mapController.setBivariate(false);
     mapController.setCity("london");
     mapController.setLayer("lst_day", { animate: true });
     mapController.setTempUnit("C");
@@ -472,6 +475,7 @@ const scenes = [
   // 3: NDVI + correlation – London
   () => {
     setSceneText(3);
+    mapController.setBivariate(false);
     mapController.setCity("london");
     mapController.setLayer("ndvi", { animate: true });
 
@@ -500,6 +504,7 @@ const scenes = [
   // 4: Across-city, daytime LST
   () => {
     setSceneText(4);
+    mapController.setBivariate(false);
     mapController.setCity("tokyo");
     mapController.setLayer("lst_day", { animate: true });
     mapController.setTempUnit("C");
@@ -529,6 +534,7 @@ const scenes = [
   // 5: What-if greenness simulator – NDVI, painting on
   () => {
     setSceneText(5);
+    mapController.setBivariate(false);
     mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 enable NDVI brush + sim summary
@@ -556,6 +562,7 @@ const scenes = [
   // 6: Inter-neighborhood across cities
   () => {
     setSceneText(6);
+    mapController.setBivariate(false);
     mapController.setLayer("lst_day", { animate: true });
 
     mapController.setControlsVisibility({
