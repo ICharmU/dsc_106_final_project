@@ -12,11 +12,17 @@
   <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
 
   <!-- Scripts -->
-  <script type="module" src="scripts/london/heat_inequality.js" defer></script> 
+  <!-- <script type="module" src="scripts/london/heat_inequality.js" defer></script>  -->
   <!-- <script type="module" src="scripts/london/londonMap.js"></script> -->
   <script type="module" src="scripts/genericMap.js" defer></script>
   <script type="module" src="scripts/compare.js" defer></script>
   <script type="module" src="scripts/intercity.js" defer></script>
+
+  <!-- Scrollama for scrollytelling -->
+  <script src="https://unpkg.com/scrollama"></script>
+  
+  <!-- Your scrolly driver -->
+  <script type="module" src="scripts/scrolly.js" defer></script>
 </head>
 <body>
   <header>
@@ -24,122 +30,37 @@
     <h3  style="text-align: center;">By: Odessa Castillo, Uzair Gheewala, Sean Harmon, and Uday Ligampalli</h3>
   </header>
 
-  <!-- TODO: Integrate this somewhere else, adding so we don't forget -->
-  <section>
-    <p>All data is averaged over 15 years from 2010-2025</p>
-  </section>
-
-  <section id="hook">
-    <div class="text">
-      <h2>The temperature in your neighborhood isn't random.</h2>
-      <p>Small differences in greenness and land cover create big differences in how cities cool at night.</p>
-      <!-- <div class="viz" id="hookViz"></div> -->
-      <div class="container">
-      <div class="map-container">
-        <div class="viz" id="heatInequalityMap"></div>
-        <div style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; display: flex; gap: 20px; align-items: flex-start;">
-          <ul style="flex: 1; margin: 0;">
-            <li>
-              Inner London boroughs have less greenness than outer boroughs.
-            </li>
-            <li>
-              Boroughs containing rivers have less greenness than boroughs without rivers.
-            </li>
-            <li>
-              People vacate during the daytime (lower relative temperatures). People live in places at night (higher relative temperatures).
-            </li>
-          </ul>
-          <div style="width: 300px;">
-            <img id="cityImage" src="images/london_boroughs.jpg" alt="City Map" style="width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-            <p id="cityImageCaption" style="text-align: center; margin-top: 8px; font-size: 12px; color: #666; font-style: italic;">Map of London Boroughs</p>
-          </div>
-        </div>
+  <section id="scrolly">
+    <!-- Sticky fullscreen-ish map wrapper -->
+    <div id="mapWrapper">
+      <div id="mainMap" class="viz"></div>
+  
+      <!-- Text overlay that we update on scroll -->
+      <div id="overlayText">
+        <h2 id="sceneTitle"></h2>
+        <p id="sceneBody"></p>
       </div>
+  
+      <!-- Layer controls we manage ourselves (not the built-in ones) -->
+      <div id="layerControls"></div>
+
+      <!-- Comparison plots in normal flow, shown/hidden by scenes -->
+      <div id="wardCompare" class="comparison-panel"></div>
+      <div id="cityCompare" class="comparison-panel"></div>
     </div>
+  
+    <!-- Invisible scroll triggers: they drive the scenes -->
+    <div id="scrollTriggers">
+      <div class="step" data-scene="0"></div>
+      <div class="step" data-scene="1"></div>
+      <div class="step" data-scene="2"></div>
+      <div class="step" data-scene="3"></div>
+      <div class="step" data-scene="4"></div>
+      <div class="step" data-scene="5"></div>
+      <div class="step" data-scene="6"></div>
+      <div class="step" data-scene="7"></div>
     </div>
   </section>
-
-  <!-- Spatial Heat Inequality -->
-  <section id="heat">
-    <h2>How heat is distributed across the city</h2>
-    <p class="subtle">Daytime vs nighttime temperatures</p>
-    
-    <div class="viz" id="lstMap"></div>
-    <!-- <div class="container">
-      <div class="map-container">
-        <h2>Heat Inequality - London, UK (click map to zoom)</h2>
-        <div id="combined-svgs">
-        </div>
-      </div>
-    </div> -->
-  </section>
-  
-  <!-- Additional Heat Inequality Map -->
-  <!-- <section id="heatInequality">
-    <h2>London Heat Inequality</h2>
-    
-  </section> -->
-  
-  <!-- London Greenness Map -->
-  <!-- <section id="london_greenness">
-    <h2>London: Where vegetation lives — and where it doesn't</h2>
-    <div class="viz" id="londonNdviMap"></div>
-  </section> -->
-  
-  <!-- London Greenness vs Heat -->
-  <!-- <section id="london_greenness_v_heat">
-    <h2>London: Vegetation distribution's effect on temperature</h2>
-    <div class="viz" id="londonNdviHeatMap"></div>
-  </section> -->
-  
-  <!-- Multi city Spatial Greenness Inequality -->
-  <section id="greenness">
-    <h2>Where vegetation lives — and where it doesn't</h2>
-    <div class="viz" id="ndviMap"></div>
-  </section> 
-  
-  </section>
-
-  <!-- Multi City Greenness vs Heat -->
-  <section id="greenness_v_heat">
-    <h2>Vegetation distribution's effect on temperature</h2>
-    <div class="viz" id="ndvi_heatMap"></div>
-    <p>Areas with lower daytime LST for areas with high vegetation compared to areas with
-        low vegetation. This is less visible for nighttime LST, but still there. This is most
-        easily evident in Tokyo, and hardest to see in New York City.
-    </p>
-  </section>
-  
-  </section>
-
-  <!-- Land Cover Type vs Greenness vs Heat -->
-  <section id="cover_v_greenness_v_heat">
-    <h2>Land cover type distribution's effect on temperature</h2>
-    <div class="viz" id="lctMap"></div>
-  </section> 
-  </section>
-  
-  <!-- Intra-city comparisons -->
-  <section id="intraCityCompare">
-    <h2>How neighborhoods compare</h2>
-    <div class="viz" id="wardCompare"></div>
-  </section> 
-  
-  </section>
-
-  <!-- Inter-city comparisons -->
-  <section id="interCityCompare">
-    <h2>How cities compare</h2>
-    <div class="viz" id="cityCompare"></div>
-    <p>Ndvi vs daytime lst - Tokyo and London show decreasing daytime LST with increasing NDVI, 
-        while San Diego shows the opposite, increasing daytime LST with increasing NDVI, NYC
-        doesn't have much of a pattern.
-        Ndvi vs nighttime lst - All 4 cities show a mild decreasing nighttime LST with increasing NDVI
-        daytime lst vs nighttime lst - San Diego and NYC don't show much of a relation surprisingly,
-        while Tokyo and London show intuitively increasing nighttime lst with increasing daytime lst
-    </p>
-  </section>
-
 
 </body>
   

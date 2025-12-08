@@ -1,9 +1,16 @@
 const container = d3.select("#cityCompare");
 container.selectAll("*").remove();
 const node = container.node();
-const width = node.clientWidth;
-const height = node.clientHeight;
-let bottom_margin = height-75;
+let width = node.clientWidth;
+let height = node.clientHeight;
+
+// Handle the display:none-at-init case
+if (!width || !height) {
+  width = parseFloat(container.style("width")) || 360;
+  height = parseFloat(container.style("height")) || 260;
+}
+
+let bottom_margin = height - 75;
 let left_margin = 45;
 
 const landCoverTypes = {
@@ -72,11 +79,12 @@ optionsY.property("selected", function(d) {
   return d === "Daytime LST";
 });
 
+const svgHeight = Math.max(0, height - 40);
 const svg = d3.select("#cityCompare")
-    .append("svg")
-    .attr("width", width)
-    .attr("height", height-40)
-    .append("g");
+  .append("svg")
+  .attr("width", width)
+  .attr("height", svgHeight || 220)
+  .append("g");
 
 let selectX = document.getElementById("mySelectx");
 let selectY = document.getElementById("mySelecty");

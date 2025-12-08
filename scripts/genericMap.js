@@ -443,9 +443,33 @@ async function createCityGridMap(config) {
   // }
 
   let layerStates = (layers || []).map(def => {
+    const nCells = rasterWidth * rasterHeight;
+
+    // 1) Try the configured key
     let vals = meta[def.valueKey];
 
-    // If simulation is enabled, swap in the *current* simulated arrays
+    // 2) Fallbacks if that’s missing (handles small naming differences)
+    if (!vals) {
+      const candidates = [
+        def.id,                     // e.g. "lst_day"
+        `${def.id}_C`,              // e.g. "lst_day_C"
+        `${def.id}_mean`,           // e.g. "lst_day_mean"
+        `${def.id}_median`          // e.g. "lst_day_median"
+      ];
+
+      for (const key of candidates) {
+        const arr = meta[key];
+        if (Array.isArray(arr) && arr.length === nCells) {
+          console.warn(
+            `Layer "${def.id}" using fallback key "${key}" (valueKey="${def.valueKey}")`
+          );
+          vals = arr;
+          break;
+        }
+      }
+    }
+
+    // 3) Swap to simulated arrays if greenness sim is enabled
     if (enableNdviPainting && simState) {
       if (def.id === "ndvi" && simState.currNdvi) {
         vals = simState.currNdvi;
@@ -456,11 +480,11 @@ async function createCityGridMap(config) {
       }
     }
 
-    if (!vals || vals.length !== rasterWidth * rasterHeight) {
+    if (!vals || vals.length !== nCells) {
       console.warn(
         `Layer "${def.id}" missing or wrong length in`,
         gridPath,
-        `(key=${def.valueKey})`
+        `(valueKey=${def.valueKey})`
       );
       return null;
     }
@@ -471,12 +495,8 @@ async function createCityGridMap(config) {
     } else {
       const explicitMin = def.minKey ? meta[def.minKey] : undefined;
       const explicitMax = def.maxKey ? meta[def.maxKey] : undefined;
-      minVal = (typeof explicitMin === "number")
-        ? explicitMin
-        : d3.min(vals);
-      maxVal = (typeof explicitMax === "number")
-        ? explicitMax
-        : d3.max(vals);
+      minVal = (typeof explicitMin === "number") ? explicitMin : d3.min(vals);
+      maxVal = (typeof explicitMax === "number") ? explicitMax : d3.max(vals);
     }
 
     const layerState = {
@@ -486,13 +506,15 @@ async function createCityGridMap(config) {
       max: maxVal
     };
 
-    // Add categories for land cover layers
     if (def.id === "lc" || def.label === "Land Cover Type") {
       layerState.categories = getLandCoverCategories(minVal, maxVal, def.palette);
     }
 
     return layerState;
   }).filter(Boolean);
+
+  // 👀 Handy debug: see which layers actually made it through
+  console.log("Grid layers for", cityName, layerStates.map(l => l.id));
 
   if (!layerStates.length) {
     console.error("No valid layers for grid map:", gridPath);
@@ -555,7 +577,7 @@ async function createCityGridMap(config) {
   }
 
   // Use session memory for layer selection if available, otherwise use config default
-  let activeLayerId = sessionActiveLayerId || defaultActiveId || layerStates[0].id;
+  let activeLayerId = defaultActiveId || layerStates[0].id;
 
   // ---------- 3. Build pixel objects ----------
   const pixels = new Array(rasterWidth * rasterHeight);
@@ -988,7 +1010,8 @@ async function createCityGridMap(config) {
       .style("border-radius", "4px")
       .style("font-size", "11px")
       .style("max-width", "260px")
-      .style("line-height", "1.3");
+      .style("line-height", "1.3")
+      .style("display", "none");
 
     updateSimSummary();
   }
@@ -1006,7 +1029,8 @@ async function createCityGridMap(config) {
       .style("border-radius", "4px")
       .style("font-size", "11px")
       .style("max-width", "260px")
-      .style("line-height", "1.3");
+      .style("line-height", "1.3")
+      .style("display", "none");
 
     brushControls.append("div")
       .style("font-weight", "bold")
@@ -1126,7 +1150,7 @@ async function createCityGridMap(config) {
     .style("padding", "4px 6px")
     .style("border-radius", "4px")
     .style("font-size", "11px")
-    .style("display", "flex")
+    .style("display", "none") // start hidden; scenes decide when to show
     .style("gap", "4px")
     .style("align-items", "center");
 
@@ -1309,7 +1333,8 @@ async function createCityGridMap(config) {
       .style("box-shadow", "0 1px 3px rgba(0,0,0,0.25)")
       .style("padding", "6px 8px")
       .style("font-size", "11px")
-      .style("max-width", "260px");
+      .style("max-width", "260px")
+      .style("display", "none");
 
     const header = corrPanel.append("div")
       .style("display", "flex")
@@ -2246,25 +2271,115 @@ async function createCityGridMap(config) {
       layers: layerStates
     }
   }));
+
+  // -------------------------------------------------------
+  // NEW: expose a city-level controller
+  // -------------------------------------------------------
+  const controller = {
+    /**
+     * Change active layer by id, e.g. "ndvi", "lst_day", "lst_night", "lc".
+     */
+    setLayer(id, { animate = true, fadeInBackground = false } = {}) {
+      const next = layerStates.find(l => l.id === id);
+      if (!next) return;
+      activeLayer = next;
+      activeLayerId = next.id;
+      //sessionActiveLayerId = next.id;
+      updateLayer(animate, fadeInBackground);
+    },
+
+    /**
+     * Set temperature unit for all temperature-like displays (C or F).
+     */
+    setTempUnit(unit) {
+      if (unit !== "C" && unit !== "F") return;
+      tempUnit = unit;
+      updateUnitButtons();
+      updateLayer(false);
+      updateSimSummary();
+    },
+
+    /**
+     * Show/hide temp unit toggle pill.
+     */
+    showUnitToggle(show) {
+      if (unitControls) {
+        unitControls.style("display", show ? "flex" : "none");
+      }
+    },
+
+    /**
+     * Show/hide correlation panel.
+     */
+    showCorrPanel(show) {
+      if (corrPanel) {
+        corrPanel.style("display", show ? "block" : "none");
+      }
+    },
+
+    /**
+     * Show/hide NDVI brush controls.
+     * (We always created them when enableNdviPainting=true; this just toggles visibility.)
+     */
+    showBrushControls(show) {
+      const brush = container.select(".ndvi-brush-controls");
+      if (!brush.empty()) {
+        brush.style("display", show ? "block" : "none");
+      }
+    },
+
+    /**
+     * Show/hide greenness simulator summary box.
+     */
+    showSimSummary(show) {
+      const box = container.select(".ndvi-sim-summary");
+      if (!box.empty()) {
+        box.style("display", show ? "block" : "none");
+      }
+    },
+
+    /**
+     * Get current city-level state (for scrolly scenes to read if needed).
+     */
+    getState() {
+      return {
+        cityName,
+        subunit,
+        activeLayerId,
+        tempUnit,
+        bivariate,
+        enableNdviPainting
+      };
+    },
+
+    /**
+     * Tear down this map (used when switching bivariate mode or fully destroying).
+     */
+    destroy() {
+      tooltip.remove();
+      container.selectAll("*").remove();
+    }
+  };
+
+  return controller;
 }
 
 // ------------------------------------------------------------------
 // Multi-city wrapper: same map component, city toggle on top
 // ------------------------------------------------------------------
-async function createMultiCityGridMap(config) {
+export async function createMultiCityGridMap(config) {
   const {
     containerId,
-    cityConfigs,           // [{ id, label, gridPath, wardStatsPath, cityName, layers, ... }]
+    cityConfigs,            // [{ id, label, gridPath, wardStatsPath, cityName, subunit, layers, ... }]
     defaultCityId = null,
-    bivariate = false,     // enable bivariate mode
+    bivariate = false,      // initial bivariate mode
     bivariateVars = null,   // { var1: "ndvi", var2: "lst_day" }
-
     enableNdviPainting = false
   } = config;
 
   if (!cityConfigs || !cityConfigs.length) {
     console.error("createMultiCityGridMap: no cityConfigs provided");
-    return;
+    return null;
   }
 
   const container = d3.select(containerId);
@@ -2272,27 +2387,43 @@ async function createMultiCityGridMap(config) {
   const width = node.clientWidth;
   const height = node.clientHeight;
 
-  // Clear everything in the outer .viz container
+  // Fallbacks so we never go negative / zero
+  if (!height || height <= 0) {
+    height = window.innerHeight || 800;  // reasonable default in scrolly layout
+  }
+
+  // Clear wrapper container
   container.selectAll("*").remove();
 
-  // --- Wrapper for controls row to position city controls left and toggle right ---
+  // -------------------------------------------------------
+  // Layout: controls row + inner map container
+  // -------------------------------------------------------
   const controlsWrapper = container.append("div")
+    .attr("class", "multi-city-controls-wrapper")
     .style("display", "flex")
     .style("justify-content", "space-between")
     .style("align-items", "center")
     .style("margin-bottom", "6px");
 
-  // --- controls row ("City: [Tokyo] [London] ...") ---
-  const controls = controlsWrapper.append("div")
+  const cityToggleControls = controlsWrapper.append("div")
     .attr("class", "city-toggle-controls")
     .style("display", "flex")
     .style("gap", "8px")
     .style("align-items", "center")
     .style("font-size", "13px");
 
-  controls.append("span").text("City:");
+  cityToggleControls.append("span").text("City:");
 
-  // City image mapping
+  const innerId = containerId.replace("#", "") + "-inner";
+  const innerSelector = "#" + innerId;
+
+  const inner = container.append("div")
+    .attr("id", innerId)
+    .style("position", "relative")
+    .style("width", "100%")
+    .style("height", height + "px");
+
+  // City image + captions you were updating before
   const cityImages = {
     "tokyo": "images/tokyo_wards.png",
     "london": "images/london_boroughs.jpg",
@@ -2301,7 +2432,6 @@ async function createMultiCityGridMap(config) {
     "sandiego": "images/san_diego_county.png"
   };
 
-  // City caption mapping
   const cityCaptions = {
     "tokyo": "Map of Tokyo Wards",
     "london": "Map of London Boroughs",
@@ -2310,19 +2440,12 @@ async function createMultiCityGridMap(config) {
     "sandiego": "Map of San Diego County"
   };
 
-  // Inner div where the actual grid map will live
-  const innerId = containerId.replace("#", "") + "-inner";
-  const innerSelector = "#" + innerId;
-
-  const inner = container.append("div")
-    .attr("id", innerId)
-    .style("position", "relative")
-    .style("width", "100%")
-    .style("height", (height - 40) + "px"); // leave room for controls
-
   let currentCityId = defaultCityId || cityConfigs[0].id;
+  let currentCityController = null;
+  let bivariateMode = !!bivariate;
+  let currentBivariateVars = bivariateVars || null;
 
-  const buttons = controls.selectAll("button")
+  const cityButtons = cityToggleControls.selectAll("button")
     .data(cityConfigs, d => d.id)
     .enter()
     .append("button")
@@ -2332,34 +2455,8 @@ async function createMultiCityGridMap(config) {
     .style("border-radius", "3px")
     .style("cursor", "pointer");
 
-  // --- Toggle button on the right side ---
-  const toggleContainer = controlsWrapper.append("div")
-    .style("display", "flex")
-    .style("gap", "8px")
-    .style("align-items", "center");
-
-  // Add appropriate toggle button based on bivariate mode
-  const toggleButton = toggleContainer.append("button")
-    .text(bivariate ? "Toggle Univariate" : "Toggle Multivariate")
-    .style("border", "1px solid #666")
-    .style("padding", "2px 8px")
-    .style("border-radius", "3px")
-    .style("cursor", "pointer")
-    .style("background", "#f0f0f0")
-    .style("color", "#333")
-    .style("font-size", "13px")
-    .on("click", function() {
-      // Toggle between bivariate and univariate modes
-      // Rebuild the entire visualization with opposite mode
-      createMultiCityGridMap({
-        ...config,
-        defaultCityId: currentCityId,
-        bivariate: !bivariate
-      });
-    });
-
-  function updateButtonStyles() {
-    buttons
+  function updateCityButtonStyles() {
+    cityButtons
       .style("background", d => d.id === currentCityId ? "#333" : "#fff")
       .style("color", d => d.id === currentCityId ? "#fff" : "#333");
   }
@@ -2368,7 +2465,13 @@ async function createMultiCityGridMap(config) {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
 
-    // Update the existing HTML city image
+    // Tear down old city map
+    if (currentCityController) {
+      currentCityController.destroy();
+      currentCityController = null;
+    }
+
+    // Update the hook image/caption if present
     const imgElement = document.getElementById("cityImage");
     const captionElement = document.getElementById("cityImageCaption");
     const imagePath = cityImages[currentCityId];
@@ -2380,7 +2483,8 @@ async function createMultiCityGridMap(config) {
       captionElement.textContent = cityCaptions[currentCityId] || "City Map";
     }
 
-    await createCityGridMap({
+    // Build the city grid map and capture its controller
+    currentCityController = await createCityGridMap({
       containerId: innerSelector,
       gridPath: cityConf.gridPath,
       wardStatsPath: cityConf.wardStatsPath,
@@ -2392,21 +2496,125 @@ async function createMultiCityGridMap(config) {
       tooltipFormatter: cityConf.tooltipFormatter,
       onReady: cityConf.onReady,
       isInitialRender: true,
-      bivariate: bivariate,
-      bivariateVars: bivariateVars,
+      bivariate: bivariateMode,
+      bivariateVars: currentBivariateVars,
       enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true)
     });
+
+    updateCityButtonStyles();
+    return currentCityController;
   }
 
-  buttons.on("click", async (event, d) => {
+  cityButtons.on("click", async (event, d) => {
     if (d.id === currentCityId) return;
     currentCityId = d.id;
-    updateButtonStyles();
     await renderCurrentCity();
   });
 
-  updateButtonStyles();
+  updateCityButtonStyles();
   await renderCurrentCity();
+
+  // -------------------------------------------------------
+  // Return high-level controller for scrolly to drive
+  // -------------------------------------------------------
+  const mapController = {
+    /**
+     * Switch active city (Tokyo, London, etc.).
+     */
+    async setCity(id) {
+      if (id === currentCityId) return;
+      if (!cityConfigs.find(c => c.id === id)) return;
+      currentCityId = id;
+      await renderCurrentCity();
+    },
+
+    /**
+     * Change active layer in the current city, e.g. "lst_night".
+     */
+    setLayer(id, opts = {}) {
+      if (!currentCityController) return;
+      currentCityController.setLayer(id, opts);
+    },
+
+    /**
+     * Turn bivariate mode on/off.
+     * This re-renders the current city with the new mode.
+     */
+    async setBivariate(on, vars) {
+      bivariateMode = !!on;
+      if (vars) currentBivariateVars = vars;
+      await renderCurrentCity();
+    },
+
+    /**
+     * Set temp unit (delegates to city controller).
+     */
+    setTempUnit(unit) {
+      if (!currentCityController) return;
+      currentCityController.setTempUnit(unit);
+    },
+
+    /**
+     * Show/hide fine-grained controls inside the current city map.
+     */
+    setControlsVisibility(opts = {}) {
+      const {
+        showLayerToggle,
+        showUnitToggle,
+        showCorrPanel,
+        showBrushControls,
+        showSimSummary,
+        showCityToggle
+      } = opts;
+
+      if (typeof showCityToggle === "boolean") {
+        cityToggleControls.style("display", showCityToggle ? "flex" : "none");
+      }
+
+      if (!currentCityController) return;
+
+      if (typeof showUnitToggle === "boolean") {
+        currentCityController.showUnitToggle(showUnitToggle);
+      }
+      if (typeof showCorrPanel === "boolean") {
+        currentCityController.showCorrPanel(showCorrPanel);
+      }
+      if (typeof showBrushControls === "boolean") {
+        currentCityController.showBrushControls(showBrushControls);
+      }
+      if (typeof showSimSummary === "boolean") {
+        currentCityController.showSimSummary(showSimSummary);
+      }
+
+      // NOTE: layer toggle buttons live inside createCityGridMap and currently
+      // are always built if showLayerToggle=true. If you want to hide the
+      // entire layer toggle row, you can add a class selector and style toggle
+      // there later (or we can extend the city controller further).
+      // For now we leave showLayerToggle to your existing per-city config.
+    },
+
+    /**
+     * Current high-level state (for debugging or subtle transitions).
+     */
+    getState() {
+      return {
+        currentCityId,
+        bivariate: bivariateMode,
+        bivariateVars: currentBivariateVars,
+        cityState: currentCityController ? currentCityController.getState() : null
+      };
+    },
+
+    /**
+     * Fully destroy the multi-city wrapper and current city map.
+     */
+    destroy() {
+      if (currentCityController) currentCityController.destroy();
+      container.selectAll("*").remove();
+    }
+  };
+
+  return mapController;
 }
 
 // ------------------------------------------------------------------
@@ -2434,6 +2642,7 @@ async function createMultiCityGridMap(config) {
 //   showLayerToggle: false
 // }).catch(err => console.error("Error rendering NDVI map:", err));
 
+/** 
 // (A) Greenness section: NDVI-only, but toggle between Tokyo & London
 createMultiCityGridMap({
   containerId: "#ndviMap",
@@ -3280,3 +3489,4 @@ createMultiCityGridMap({
   ],
   defaultCityId: "london"
 }).catch(err => console.error("Error rendering heat inequality map:", err));
+ */

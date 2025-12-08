@@ -100,6 +100,13 @@ function buildWardCompareShell() {
   const width = node.clientWidth;
   const height = node.clientHeight;
 
+  // If the panel was display:none at init, clientWidth/Height will be 0.
+  // Fall back to CSS-defined size or sensible defaults.
+  if (!width || !height) {
+    width = parseFloat(container.style("width")) || 360;
+    height = parseFloat(container.style("height")) || 260;
+  }
+
   const controls = container.append("div")
     .attr("class", "ward-compare-simple-controls")
     .style("display", "flex")
@@ -179,10 +186,10 @@ function buildWardCompareShell() {
     .style("opacity", 0);
 
   // ---- SVG for the bar chart ----
-  const svgHeight = height - 40;
+  const svgHeight = Math.max(0, height - 40);
   barSvg = container.append("svg")
     .attr("width", width)
-    .attr("height", svgHeight);
+    .attr("height", svgHeight || 220); // fallback
 }
 
 // -------------------------------------------------------------
