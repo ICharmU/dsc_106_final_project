@@ -121,15 +121,21 @@ function shouldUseCityCurve(cityModel, target) {
  */
 function estimateLstChangeFromNdvi(opts) {
   const { cityName, baseNdvi, newNdvi, target } = opts;
-  if (!ndviLstModels) return null;
+
+  // Basic sanity checks
   if (baseNdvi == null || !Number.isFinite(baseNdvi)) return null;
   if (newNdvi == null || !Number.isFinite(newNdvi)) return null;
 
   const cityKey = modelCityKeyFromName(cityName);
   if (!cityKey) return null;
 
-  const models = ndviLstModels.per_city_response_curves || {};
-  const cityModel = models[cityKey];
+  let cityModel = null;
+
+  // Only try per-city curves if we actually have ndviLstModels loaded
+  if (ndviLstModels && ndviLstModels.per_city_response_curves) {
+    const models = ndviLstModels.per_city_response_curves;
+    cityModel = models[cityKey];
+  }
 
   // 1) Try city-specific response curve if correlation strong enough
   if (cityModel && shouldUseCityCurve(cityModel, target)) {
@@ -137,14 +143,10 @@ function estimateLstChangeFromNdvi(opts) {
       ? cityModel.ndvi_to_lst.day
       : cityModel.ndvi_to_lst.night;
 
-    if (!curve || !curve.ndvi || !curve.lst || !curve.ndvi.length) {
-      // fall through to pooled
-    } else {
+    if (curve && curve.ndvi && curve.lst && curve.ndvi.length) {
       const basePred = interp1D(curve.ndvi, curve.lst, baseNdvi);
       const newPred  = interp1D(curve.ndvi, curve.lst, newNdvi);
-      if (basePred == null || newPred == null) {
-        // fall through to pooled
-      } else {
+      if (basePred != null && newPred != null) {
         return {
           basePred,
           newPred,
@@ -153,9 +155,10 @@ function estimateLstChangeFromNdvi(opts) {
         };
       }
     }
+    // fall through to pooled if curve missing / interpolation fails
   }
 
-  // 2) Fallback: pooled linear model
+  // 2) Fallback: pooled linear model (works even if ndviLstModels is null)
   const pooled = GLOBAL_LINEAR_MODEL[target];
   if (!pooled) return null;
 
@@ -2164,7 +2167,7 @@ async function createCityGridMap(config) {
     }
 
     // --- Daytime update ---
-    if (simState.baseLstDay && simState.currLstDay && ndviLstModels) {
+    if (simState.baseLstDay && simState.currLstDay) {
       const resDay = estimateLstChangeFromNdvi({
         cityName,
         baseNdvi,
@@ -2182,7 +2185,7 @@ async function createCityGridMap(config) {
     }
 
     // --- Nighttime update ---
-    if (simState.baseLstNight && simState.currLstNight && ndviLstModels) {
+    if (simState.baseLstNight && simState.currLstNight) {
       const resNight = estimateLstChangeFromNdvi({
         cityName,
         baseNdvi,
