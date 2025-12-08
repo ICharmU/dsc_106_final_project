@@ -76,9 +76,7 @@ function setLayerControls(layers, activeId) {
 
   buttons.exit().remove();
 
-  if (activeId) {
-    mapController.setLayer(activeId, { animate: false });
-  }
+  // Don't call setLayer here - it will be called by the scene or button click
 }
 
 // ------------------------------------
@@ -251,6 +249,7 @@ async function initMainMap() {
         subunit: "Borough",
         enableNdviPainting: true,
         showLayerToggle: false,
+        defaultActiveId: "lst_night",
         layers: [
           {
             id: "ndvi",
@@ -396,14 +395,19 @@ async function initMainMap() {
 // -----------------------------------------------------
 // Scene definitions – across-city, intra-city early
 // -----------------------------------------------------
+let currentCity = null; // Track the current city to avoid unnecessary re-renders
+
 const scenes = [
   // 0: Hook – London, nighttime heat, no extra controls
   () => {
     setSceneText(0);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_night", { animate: true, fadeInBackground: true });
+    if (currentCity !== "london") {
+      mapController.setCity("london");
+      currentCity = "london";
+    }
     mapController.setTempUnit("C");
+    mapController.setLayer("lst_night", { animate: false });
 
     // 🔑 Only temp-unit pill, nothing else yet
     mapController.setControlsVisibility({
@@ -424,8 +428,11 @@ const scenes = [
   () => {
     setSceneText(1);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_night", { animate: false });
+    if (currentCity !== "london") {
+      mapController.setCity("london");
+      currentCity = "london";
+    }
+    mapController.setLayer("lst_night", { animate: true });
     mapController.setTempUnit("C");
 
     mapController.setControlsVisibility({
@@ -453,8 +460,10 @@ const scenes = [
   () => {
     setSceneText(2);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_day", { animate: true });
+    if (currentCity !== "london") {
+      mapController.setCity("london");
+      currentCity = "london";
+    }
     mapController.setTempUnit("C");
 
     mapController.setControlsVisibility({
@@ -473,6 +482,8 @@ const scenes = [
       "lst_day"
     );
 
+    mapController.setLayer("lst_day", { animate: true });
+
     showWardCompare(true);
     showCityCompare(false);
     showUhiCompare(true); 
@@ -482,7 +493,10 @@ const scenes = [
   () => {
     setSceneText(3);
     mapController.setBivariate(false);
-    mapController.setCity("london");
+    if (currentCity !== "london") {
+      mapController.setCity("london");
+      currentCity = "london";
+    }
     mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 correlation panel becomes relevant here
@@ -512,8 +526,11 @@ const scenes = [
   () => {
     setSceneText(4);
     mapController.setBivariate(false);
-    mapController.setCity("tokyo");
-    mapController.setLayer("lst_day", { animate: true });
+    if (currentCity !== "tokyo") {
+      mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
+    mapController.setLayer("ndvi", { animate: true });
     mapController.setTempUnit("C");
 
     // 🔑 now city toggle row makes sense
@@ -527,11 +544,11 @@ const scenes = [
 
     setLayerControls(
       [
+        { id: "ndvi",      label: "Vegetation" },
         { id: "lst_day",   label: "Daytime Temp." },
-        { id: "lst_night", label: "Nighttime Temp." },
-        { id: "ndvi",      label: "Vegetation" }
+        { id: "lst_night", label: "Nighttime Temp." }
       ],
-      "lst_day"
+      "ndvi"
     );
 
     showWardCompare(true);
@@ -543,6 +560,10 @@ const scenes = [
   () => {
     setSceneText(5);
     mapController.setBivariate(false);
+    if (currentCity !== "tokyo") {
+      mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
     mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 enable NDVI brush + sim summary
@@ -572,7 +593,10 @@ const scenes = [
   () => {
     setSceneText(6);
     mapController.setBivariate(false);
-    mapController.setLayer("lst_day", { animate: true });
+    if (currentCity !== "tokyo") {
+      mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -590,6 +614,8 @@ const scenes = [
       "lst_day"
     );
 
+    mapController.setLayer("lst_day", { animate: true });
+
     showWardCompare(true);
     showCityCompare(false);
     showUhiCompare(true);
@@ -598,6 +624,10 @@ const scenes = [
   // 7: Final bivariate view + inter-city chart
   () => {
     setSceneText(7);
+    if (currentCity !== "tokyo") {
+      mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
     mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
     mapController.setTempUnit("C");
 
@@ -631,6 +661,11 @@ function initScroller() {
     })
     .onStepEnter(response => {
       const idx = Number(response.element.dataset.scene);
+      const direction = response.direction; // 'up' or 'down'
+      
+      // When scrolling down, show the scene we're entering
+      // When scrolling up, show the scene we're entering (going back to)
+      // Both are the same - just trigger the scene for the step we're entering
       const fn = scenes[idx];
       if (fn && mapController) fn();
     });

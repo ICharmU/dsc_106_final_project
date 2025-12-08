@@ -1204,11 +1204,9 @@ async function createCityGridMap(config) {
     legendLeft = Math.max(idealLeft, minLeft);
     legendTransform = "translate(-50%, -50%)";
   } else {
-    // For univariate: 10px left of map, but ensure it fits
-    const idealLeft = xOffset - 10;
-    const minLeft = legendWidth + 10; // Ensure full width visible with 10px padding
-    legendLeft = Math.max(idealLeft, minLeft);
-    legendTransform = "translate(-100%, -50%)";
+    // For univariate: left-aligned with 10px padding from container edge
+    legendLeft = 10;
+    legendTransform = "translate(0%, -50%)";
   }
 
   // Create a container div for the legend that can be rebuilt as needed
@@ -1681,7 +1679,7 @@ async function createCityGridMap(config) {
       const bivariateColor = createBivariateColorScale(bivariatePalette1, bivariatePalette2);
     
       const sel = animate
-        ? rects.transition().duration(350)
+        ? rects.transition().duration(800)
         : rects;
       
       sel.attr("fill", d => {
@@ -1930,7 +1928,7 @@ async function createCityGridMap(config) {
     const isLandCover = activeLayer.id === "lc" || activeLayer.label === "Land Cover Type (grouped)";
 
     const sel = animate
-      ? rects.transition().duration(350)
+      ? rects.transition().duration(800)
       : rects;
 
     sel
