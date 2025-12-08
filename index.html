@@ -40,13 +40,35 @@
         <h2 id="sceneTitle"></h2>
         <p id="sceneBody"></p>
       </div>
+
+      <div id="mapResetButton">Reset story</div>
   
       <!-- Layer controls we manage ourselves (not the built-in ones) -->
       <div id="layerControls"></div>
 
       <!-- Comparison plots in normal flow, shown/hidden by scenes -->
-      <div id="wardCompare" class="comparison-panel"></div>
-      <div id="cityCompare" class="comparison-panel"></div>
+      <div id="wardCompare" class="comparison-panel">
+        <div class="panel-header" data-panel-id="wardCompare">
+          <span class="panel-title">Within-city comparison</span>
+          <div class="panel-controls">
+            <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
+            <button class="panel-btn panel-hide" title="Collapse">–</button>
+          </div>
+        </div>
+        <div class="panel-body"></div>
+      </div>
+      
+      <div id="cityCompare" class="comparison-panel">
+        <div class="panel-header" data-panel-id="cityCompare">
+          <span class="panel-title">Across-city comparison</span>
+          <div class="panel-controls">
+            <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
+            <button class="panel-btn panel-hide" title="Collapse">–</button>
+          </div>
+        </div>
+        <div class="panel-body"></div>
+      </div>
+
     </div>
   
     <!-- Invisible scroll triggers: they drive the scenes -->

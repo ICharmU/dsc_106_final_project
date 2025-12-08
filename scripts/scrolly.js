@@ -102,6 +102,85 @@ function setSceneText(index) {
   d3.select("#sceneBody").text(t.body);
 }
 
+// ------------------------------------
+// Floating panel behavior (drag + hide)
+// ------------------------------------
+function initFloatingPanels() {
+  const panels = document.querySelectorAll(".comparison-panel");
+
+  panels.forEach(panel => {
+    const header = panel.querySelector(".panel-header");
+    if (!header) return;
+
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    header.addEventListener("mousedown", (e) => {
+      // Skip if click is on a button in the header
+      if (e.target.closest(".panel-btn")) return;
+      if (e.button !== 0) return; // left mouse only
+
+      isDragging = true;
+
+      const rect = panel.getBoundingClientRect();
+
+      // Make sure the panel is fixed relative to the viewport
+      panel.style.position = "fixed";
+      panel.style.left = rect.left + "px";
+      panel.style.top = rect.top + "px";
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      panel.style.zIndex = "1000"; // stay above the map
+
+      startLeft = rect.left;
+      startTop = rect.top;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      panel.style.left = `${startLeft + dx}px`;
+      panel.style.top = `${startTop + dy}px`;
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.style.userSelect = "";
+    });
+
+    // Collapse button
+    const hideBtn = panel.querySelector(".panel-hide");
+    if (hideBtn) {
+      hideBtn.addEventListener("click", () => {
+        panel.classList.toggle("collapsed");
+      });
+    }
+
+    // Reset panel button: back to default size/position
+    const resetBtn = panel.querySelector(".panel-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        panel.classList.remove("collapsed");
+        // Remove any inline drag/resize overrides
+        panel.style.left = "";
+        panel.style.top = "";
+        panel.style.right = "16px";
+        panel.style.bottom = "16px";
+        panel.style.width = "420px";
+        panel.style.height = "280px";
+
+        // Let the ResizeObserver reflow the chart
+      });
+    }
+  });
+}
+
 async function initMainMap() {
   // This config is basically your "heat inequality" + NDVI painting superset.
   mapController = await createMultiCityGridMap({
@@ -546,8 +625,17 @@ function initScroller() {
 // ------------------------------------
 (async function main() {
   await initMainMap();
+  initFloatingPanels();
   initScroller();
 
   // Initial scene state (top of page)
   scenes[0] && scenes[0]();
+
+  // Global reset: reload to restore brushes, scenes, panel positions, etc.
+  const resetBtn = document.getElementById("mapResetButton");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
 })();

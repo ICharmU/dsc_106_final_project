@@ -63,6 +63,36 @@ let barsSelection = null;
 let barTooltip = null;
 let barHighlightId = null;
 
+// --- Resize handling for the ward compare panel ---
+let wardCompareResizeObserver = null;
+
+function rebuildWardCompareForSize() {
+  const containerNode = document.querySelector("#wardCompare .panel-body");
+  if (!containerNode || !barSvg) return;
+
+  const w = containerNode.clientWidth;
+  const h = containerNode.clientHeight;
+  if (!w || !h) return; // collapsed / hidden
+
+  // Match the SVG to the new panel-body size
+  const controlsEl = containerNode.querySelector(".ward-compare-simple-controls");
+  const controlsHeight = controlsEl
+    ? controlsEl.getBoundingClientRect().height
+    : 0;
+
+  const svgHeight = Math.max(120, h - controlsHeight - 8);
+
+  barSvg
+    .attr("width", w)
+    .attr("height", svgHeight);
+
+  updateChart();
+
+  const scale = Math.max(0.75, Math.min(1.15, w / 360));
+  d3.select("#wardCompare .panel-body")
+    .style("font-size", `${12 * scale}px`);
+}
+
 // -------------------------------------------------------------
 // Helpers
 // -------------------------------------------------------------
@@ -93,12 +123,12 @@ function highlightBar(wardId) {
 // Build static shell: controls + SVG container
 // -------------------------------------------------------------
 function buildWardCompareShell() {
-  const container = d3.select("#wardCompare");
+  const container = d3.select("#wardCompare .panel-body");
   container.selectAll("*").remove();
 
   const node = container.node();
-  const width = node.clientWidth;
-  const height = node.clientHeight;
+  let width = node.clientWidth;
+  let height = node.clientHeight;
 
   // If the panel was display:none at init, clientWidth/Height will be 0.
   // Fall back to CSS-defined size or sensible defaults.
@@ -186,7 +216,11 @@ function buildWardCompareShell() {
     .style("opacity", 0);
 
   // ---- SVG for the bar chart ----
-  const svgHeight = Math.max(0, height - 40);
+  // Use the *remaining* height after controls instead of full height
+  const controlsHeight = controls.node().getBoundingClientRect().height || 0;
+  const availableHeight = height - controlsHeight - 8; // small gap
+  const svgHeight = Math.max(120, availableHeight);
+
   barSvg = container.append("svg")
     .attr("width", width)
     .attr("height", svgHeight || 220); // fallback
@@ -203,7 +237,8 @@ function updateChart() {
 
   const data = wards.filter(w => Number.isFinite(w[metricKey]));
   if (!data.length) {
-    barSvg.selectAll("*").remove();
+    console.warn("Ward compare: no data for metric", metricKey);
+    // Keep the previous chart visible instead of wiping it out
     return;
   }
 
@@ -344,4 +379,39 @@ function updateChart() {
 
     highlightBar(detail.wardId || null);
   });
+
+  // Resize observer so chart resizes when user resizes the panel
+  const bodyEl = document.querySelector("#wardCompare .panel-body");
+  if (bodyEl && !wardCompareResizeObserver) {
+    wardCompareResizeObserver = new ResizeObserver(() => {
+      rebuildWardCompareForSize();
+    });
+    wardCompareResizeObserver.observe(bodyEl);
+  }
+
+  document.addEventListener("wardStatsUpdated", (evt) => {
+    const detail = evt.detail || {};
+    const cityName = (detail.cityName || "").toLowerCase();
+    const metrics = detail.metricsByWardId || {};
+
+    const cityId = cityIdFromName(cityName);
+    if (!cityId) return;
+
+    const wards = wardsByCity.get(cityId);
+    if (!wards) return;
+
+    wards.forEach(w => {
+      const m = metrics[w.id];
+      if (!m) return;
+      // Only override when the mean is actually defined
+      if (Number.isFinite(m.ndvi_mean))      w.ndvi_mean      = m.ndvi_mean;
+      if (Number.isFinite(m.lst_day_mean))   w.lst_day_mean   = m.lst_day_mean;
+      if (Number.isFinite(m.lst_night_mean)) w.lst_night_mean = m.lst_night_mean;
+    });
+
+    if (cityId === activeCityId) {
+      updateChart();
+    }
+  });
+
 })().catch(err => console.error("Error initializing simple ward compare:", err));

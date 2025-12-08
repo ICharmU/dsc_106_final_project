@@ -1,8 +1,9 @@
-const container = d3.select("#cityCompare");
+const container = d3.select("#cityCompare .panel-body");
 container.selectAll("*").remove();
 const node = container.node();
-let width = node.clientWidth;
-let height = node.clientHeight;
+
+let width = node.clientWidth || 360;
+let height = node.clientHeight || 230;
 
 // Handle the display:none-at-init case
 if (!width || !height) {
@@ -40,6 +41,8 @@ const vars = d3.select("#cityCompare")
 
 //Create array of options to be added
 var array = ["NDVI","Daytime LST","Nighttime LST"];
+
+const dynamicWardStatsByCity = {};
 
 d3.select('#vars')
     .append("label")
@@ -79,17 +82,35 @@ optionsY.property("selected", function(d) {
   return d === "Daytime LST";
 });
 
-const svgHeight = Math.max(0, height - 40);
-const svg = d3.select("#cityCompare")
+const svgHeight = Math.max(140, height - 40);
+let svgRoot = container
   .append("svg")
   .attr("width", width)
-  .attr("height", svgHeight || 220)
-  .append("g");
+  .attr("height", svgHeight || 220);
+
+let svg = svgRoot.append("g");
 
 let selectX = document.getElementById("mySelectx");
 let selectY = document.getElementById("mySelecty");
 
 let activeVars = ['NDVI', 'Daytime LST'];
+
+// Resize observer
+let cityCompareResizeObserver = null;
+function rebuildCityCompareForSize() {
+  const node = container.node();
+  width = node.clientWidth || 360;
+  height = node.clientHeight || 230;
+  bottom_margin = height - 75;
+
+  // Re-run the plot with current selections
+  renderPlot(activeVars[0], activeVars[1]);
+
+  // Scale fonts
+  const scale = Math.max(0.75, Math.min(1.15, width / 360));
+  d3.select("#cityCompare .panel-body")
+    .style("font-size", `${12 * scale}px`);
+}
 
 const tooltip = d3.select("body")
     .append("div")
@@ -103,11 +124,34 @@ const tooltip = d3.select("body")
     .style("font-size", "12px")
     .style("opacity", 0);
 
+document.addEventListener("wardStatsUpdated", (evt) => {
+  const detail = evt.detail || {};
+  const cityName = detail.cityName;
+  if (!cityName) return;
+  dynamicWardStatsByCity[cityName.toLowerCase()] = detail.metricsByWardId || {};
+});
+
 async function renderPlot(x, y) {
+    const node = container.node();
+    width = node.clientWidth || 360;
+    height = node.clientHeight || 230;
+    bottom_margin = height - 75;
+
+    // Update SVG size to match panel-body
+    const newSvgHeight = Math.max(140, height - 40);
+    svgRoot
+      .attr("width", width)
+      .attr("height", newSvgHeight);
+
+    bottom_margin = newSvgHeight - 35; // bottom axis margin based on SVG height
+
+    svg.selectAll("*").remove();
     svg.selectAll("circle").remove();
     svg.selectAll("g").remove();
     svg.selectAll("text").remove();
+
     activeVars = [x, y];
+
     let axisMap = {
         "NDVI": "ndvi_median",
         "Daytime LST": "lst_day_median",
@@ -220,6 +264,7 @@ async function renderPlot(x, y) {
         .style('font-size', '14px')
         .style('font-family', 'sans-serif')
         .text(d => d.place);
+
     for (const placePath of places) {
         let path = placePath.path;
         let wardMeta = null;
@@ -227,50 +272,75 @@ async function renderPlot(x, y) {
             const wardResp = await fetch(path);
             wardMeta = await wardResp.json();
         }
+
+        // override medians if we have live stats from the map
+        const dynStatsAll = dynamicWardStatsByCity[placePath.place.toLowerCase()]
+                        || dynamicWardStatsByCity[(placePath.place || "").toLowerCase()];
+        if (dynStatsAll && wardMeta && Array.isArray(wardMeta.wards)) {
+            wardMeta.wards.forEach(w => {
+            const m = dynStatsAll[w.id];
+            if (!m) return;
+            if (m.ndvi_mean != null) w.ndvi_median = m.ndvi_mean;
+            if (m.lst_day_mean != null) w.lst_day_median = m.lst_day_mean;
+            if (m.lst_night_mean != null) w.lst_night_median = m.lst_night_mean;
+            });
+        }
+        
         svg.selectAll("fake")
-        .data(wardMeta.wards)
-        .enter()
-        .append("circle")
-        .attr("cx", d => xScale(d[axisMap[x]]))
-        .attr("cy", d => yScale(d[axisMap[y]]))
-        .attr("r", 5)
-        .attr("id", placePath.place)
-        .style("fill", colorScale(placePath.place))
-        .on("mouseover", function(event, d) {
-            d3.select(this)
-                .attr("stroke", "#000")
-                .attr("stroke-width", 0.5);
-            let name = d['name'];
-            let ndvi = d['ndvi_median'];
-            let dlst = d['lst_day_median'];
-            let nlst = d['lst_night_median'];
-            let lc = d['lc_mode'];
-            tooltip.style("opacity", 1) // Make tooltip visible
-            .html(defaultTooltipFormatter({
-                place: placePath.place,
-                ward: name,
-                ndvi,
-                dlst,
-                nlst,
-                lc,
-                subunit: placePath.subunit
-            }))
-            .style("left", (event.pageX + 10) + "px") // Position near mouse
-            .style("top", (event.pageY - 20) + "px");
-        })
-        .on("mouseout", function() {
-            tooltip.style("opacity", 0); // Hide tooltip
-            d3.select(this).attr("stroke", null);
-        }); // Customize circle color
+            .data(wardMeta.wards)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale(d[axisMap[x]]))
+            .attr("cy", d => yScale(d[axisMap[y]]))
+            .attr("r", 5)
+            .attr("id", placePath.place)
+            .style("fill", colorScale(placePath.place))
+            .on("mouseover", function(event, d) {
+                d3.select(this)
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 0.5);
+                let name = d['name'];
+                let ndvi = d['ndvi_median'];
+                let dlst = d['lst_day_median'];
+                let nlst = d['lst_night_median'];
+                let lc = d['lc_mode'];
+                tooltip.style("opacity", 1) // Make tooltip visible
+                .html(defaultTooltipFormatter({
+                    place: placePath.place,
+                    ward: name,
+                    ndvi,
+                    dlst,
+                    nlst,
+                    lc,
+                    subunit: placePath.subunit
+                }))
+                .style("left", (event.pageX + 10) + "px") // Position near mouse
+                .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseout", function() {
+                tooltip.style("opacity", 0); // Hide tooltip
+                d3.select(this).attr("stroke", null);
+            }); // Customize circle color
     }
 }
 
 renderPlot(selectX.value, selectY.value);
 
 selectX.addEventListener("change", function() {
-    renderPlot(selectX.value, selectY.value);
+  activeVars[0] = selectX.value;
+  renderPlot(selectX.value, selectY.value);
 });
 
 selectY.addEventListener("change", function() {
-    renderPlot(selectX.value, selectY.value);
+  activeVars[1] = selectY.value;
+  renderPlot(selectX.value, selectY.value);
 });
+
+// Resize observer
+const bodyEl = document.querySelector("#cityCompare .panel-body");
+if (bodyEl && !cityCompareResizeObserver) {
+  cityCompareResizeObserver = new ResizeObserver(() => {
+    rebuildCityCompareForSize();
+  });
+  cityCompareResizeObserver.observe(bodyEl);
+}
