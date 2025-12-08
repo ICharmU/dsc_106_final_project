@@ -30,6 +30,149 @@ const landCoverGroups = {
   'Barren': { values: [15, 16], color: '#de8124ff' },           
 };
 
+// ------------------------------------------------------------------
+// NDVI → LST response models for "what-if greenness" simulator
+// ------------------------------------------------------------------
+
+let ndviLstModels = null;  // loaded JSON from Python
+const CORR_THRESHOLD = 0.4; // decide city-curve vs pooled
+const ndviPaintSimStore = {};
+
+const DEFAULT_PAINT_DELTA = 0.02;     // default NDVI increment per pass
+const DEFAULT_BRUSH_RADIUS = 0;       // 0 = single pixel, 1 = ~3x3 neighborhood
+const NDVI_MAX_CLAMP = 0.95;          // don’t let NDVI blow up
+
+// From greenness_model_experiments.py output (pooled linear models)
+const GLOBAL_LINEAR_MODEL = {
+  day: {
+    ndvi_slope: -5.606,   // °C per NDVI
+    city_intercepts: {
+      "tokyo":    26.23,
+      "london":   19.33,
+      "nyc":      21.26,
+      "sandiego": 32.31
+    },
+    global_intercept: 0   // not actually used if we have city intercepts
+  },
+  night: {
+    ndvi_slope: -3.322,
+    city_intercepts: {
+      "tokyo":    11.62,
+      "london":   8.70,
+      "nyc":      10.01,
+      "sandiego": 14.12
+    },
+    global_intercept: 0
+  }
+};
+
+// Map various city names → model keys
+function modelCityKeyFromName(name) {
+  const s = (name || "").toLowerCase();
+  if (s.includes("tokyo")) return "tokyo";
+  if (s.includes("london")) return "london";
+  if (s.includes("new york")) return "nyc";
+  if (s.includes("san diego")) return "sandiego";
+  return null;
+}
+
+function interp1D(xs, ys, x) {
+  if (!xs || !ys || xs.length === 0) return null;
+
+  const X = xs.map(Number);
+  const Y = ys.map(Number);
+
+  if (x <= X[0]) return Y[0];
+  if (x >= X[X.length - 1]) return Y[Y.length - 1];
+
+  let lo = 0;
+  let hi = X.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (x < X[mid]) hi = mid;
+    else lo = mid;
+  }
+  const x0 = X[lo], x1 = X[hi];
+  const y0 = Y[lo], y1 = Y[hi];
+  const t = (x - x0) / (x1 - x0);
+  return y0 + t * (y1 - y0);
+}
+
+// Decide whether to trust the city-specific curve or fall back on pooled model
+function shouldUseCityCurve(cityModel, target) {
+  if (!cityModel) return false;
+  const r = (target === "day")
+    ? cityModel.ndvi_corr_day
+    : cityModel.ndvi_corr_night;
+  return r != null && Math.abs(r) >= CORR_THRESHOLD;
+}
+
+/**
+ * Estimate LST (and Δ) for NDVI change at a given pixel.
+ *
+ * @param {Object} opts
+ *   cityName: string (e.g. "Tokyo")
+ *   baseNdvi: number
+ *   newNdvi: number
+ *   target: "day" | "night"
+ *
+ * @returns {Object|null}
+ *   { basePred, newPred, delta, source: "city-curve" | "pooled-linear" }
+ */
+function estimateLstChangeFromNdvi(opts) {
+  const { cityName, baseNdvi, newNdvi, target } = opts;
+  if (!ndviLstModels) return null;
+  if (baseNdvi == null || !Number.isFinite(baseNdvi)) return null;
+  if (newNdvi == null || !Number.isFinite(newNdvi)) return null;
+
+  const cityKey = modelCityKeyFromName(cityName);
+  if (!cityKey) return null;
+
+  const models = ndviLstModels.per_city_response_curves || {};
+  const cityModel = models[cityKey];
+
+  // 1) Try city-specific response curve if correlation strong enough
+  if (cityModel && shouldUseCityCurve(cityModel, target)) {
+    const curve = (target === "day")
+      ? cityModel.ndvi_to_lst.day
+      : cityModel.ndvi_to_lst.night;
+
+    if (!curve || !curve.ndvi || !curve.lst || !curve.ndvi.length) {
+      // fall through to pooled
+    } else {
+      const basePred = interp1D(curve.ndvi, curve.lst, baseNdvi);
+      const newPred  = interp1D(curve.ndvi, curve.lst, newNdvi);
+      if (basePred == null || newPred == null) {
+        // fall through to pooled
+      } else {
+        return {
+          basePred,
+          newPred,
+          delta: newPred - basePred,
+          source: "city-curve"
+        };
+      }
+    }
+  }
+
+  // 2) Fallback: pooled linear model
+  const pooled = GLOBAL_LINEAR_MODEL[target];
+  if (!pooled) return null;
+
+  const slope = pooled.ndvi_slope;
+  const intercept = pooled.city_intercepts[cityKey] ?? pooled.global_intercept;
+
+  const basePred = intercept + slope * baseNdvi;
+  const newPred  = intercept + slope * newNdvi;
+
+  return {
+    basePred,
+    newPred,
+    delta: newPred - basePred,
+    source: "pooled-linear"
+  };
+}
+
 // Helper function to generate shades around a base color
 function generateColorShades(baseColor, count) {
   // Parse the base color
@@ -186,8 +329,24 @@ async function createCityGridMap(config) {
 
     tooltipFormatter = null, // optional custom formatter
     onReady = null,          // optional callback after draw
-    isInitialRender = false  // flag for city switch transitions
+    isInitialRender = false,  // flag for city switch transitions
+
+    enableNdviPainting = false
   } = config;
+
+  let activeLayer = null;
+
+  // Temperature unit for display only ("C" or "F")
+  let tempUnit = "C";
+
+  function toDisplayTemp(cVal) {
+    if (cVal == null || !Number.isFinite(cVal)) return null;
+    return tempUnit === "C" ? cVal : (cVal * 9 / 5 + 32);
+  }
+
+  function tempSuffix() {
+    return tempUnit === "C" ? "°C" : "°F";
+  }
 
   const container = d3.select(containerId);
   const node = container.node();
@@ -216,6 +375,53 @@ async function createCityGridMap(config) {
     return;
   }
 
+  // --- NDVI painting / simulation state for this city (if enabled) ---
+  const simCityKey = enableNdviPainting ? modelCityKeyFromName(cityName) : null;
+  let simState = null;
+
+  if (enableNdviPainting && simCityKey && meta.ndvi) {
+    const nPixels = rasterWidth * rasterHeight;
+    let store = ndviPaintSimStore[simCityKey];
+
+    if (!store || store.width !== rasterWidth || store.height !== rasterHeight) {
+      store = {
+        width: rasterWidth,
+        height: rasterHeight,
+
+        baseNdvi: Float32Array.from(meta.ndvi),
+        baseLstDay: meta.lst_day_C ? Float32Array.from(meta.lst_day_C) : null,
+        baseLstNight: meta.lst_night_C ? Float32Array.from(meta.lst_night_C) : null,
+
+        currNdvi: Float32Array.from(meta.ndvi),
+        currLstDay: meta.lst_day_C ? Float32Array.from(meta.lst_day_C) : null,
+        currLstNight: meta.lst_night_C ? Float32Array.from(meta.lst_night_C) : null,
+
+        deltaDay: new Float32Array(nPixels),   // per-pixel Δ vs base
+        deltaNight: new Float32Array(nPixels),
+        touchedMask: new Uint8Array(nPixels),  // 0/1: has this pixel been painted?
+        touchedCount: 0,
+        totalDeltaDay: 0,
+        totalDeltaNight: 0,
+        wardsTouched: new Set(),
+
+        // NEW: brush configuration (persists per city)
+        brushRadius: DEFAULT_BRUSH_RADIUS,
+        paintStep: DEFAULT_PAINT_DELTA
+      };
+      ndviPaintSimStore[simCityKey] = store;
+    } else {
+      // Make sure new fields exist on old store
+      if (typeof store.brushRadius !== "number") {
+        store.brushRadius = DEFAULT_BRUSH_RADIUS;
+      }
+      if (typeof store.paintStep !== "number") {
+        store.paintStep = DEFAULT_PAINT_DELTA;
+      }
+    }
+
+    simState = store;
+  }
+
   // Ward info map (id -> ward object)
   const wardInfoMap = new Map();
   if (wardMeta && wardMeta.wards) {
@@ -237,7 +443,19 @@ async function createCityGridMap(config) {
   // }
 
   let layerStates = (layers || []).map(def => {
-    const vals = meta[def.valueKey];
+    let vals = meta[def.valueKey];
+
+    // If simulation is enabled, swap in the *current* simulated arrays
+    if (enableNdviPainting && simState) {
+      if (def.id === "ndvi" && simState.currNdvi) {
+        vals = simState.currNdvi;
+      } else if (def.id === "lst_day" && simState.currLstDay) {
+        vals = simState.currLstDay;
+      } else if (def.id === "lst_night" && simState.currLstNight) {
+        vals = simState.currLstNight;
+      }
+    }
+
     if (!vals || vals.length !== rasterWidth * rasterHeight) {
       console.warn(
         `Layer "${def.id}" missing or wrong length in`,
@@ -279,6 +497,61 @@ async function createCityGridMap(config) {
   if (!layerStates.length) {
     console.error("No valid layers for grid map:", gridPath);
     return;
+  }
+
+  // ---- Correlation plot state ----
+  // We only consider numeric / continuous layers (no land cover)
+  const numericLayers = layerStates.filter(l => !l.categories && l.id !== "lc");
+
+  let corrXId = null;
+  let corrYId = null;
+  let corrPanel = null;
+  let corrSvg = null;
+  let corrContent = null;
+  let corrXSelect = null;
+  let corrYSelect = null;
+
+  // Deferred update (to avoid recomputing on every single pixel while dragging)
+  let corrNeedsUpdate = false;
+  let corrUpdateScheduled = false;
+
+  function computeCorrelation(xs, ys) {
+    const n = xs.length;
+    if (n < 2) return null;
+
+    let sumX = 0, sumY = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += xs[i];
+      sumY += ys[i];
+    }
+    const meanX = sumX / n;
+    const meanY = sumY / n;
+
+    let num = 0, denX = 0, denY = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = xs[i] - meanX;
+      const dy = ys[i] - meanY;
+      num  += dx * dy;
+      denX += dx * dx;
+      denY += dy * dy;
+    }
+    const denom = Math.sqrt(denX * denY);
+    if (!denom) return null;
+    return num / denom;
+  }
+
+  function requestCorrelationUpdate() {
+    if (!corrPanel || !numericLayers || numericLayers.length < 2) return;
+    corrNeedsUpdate = true;
+    if (corrUpdateScheduled) return;
+    corrUpdateScheduled = true;
+    setTimeout(() => {
+      if (corrNeedsUpdate) {
+        corrNeedsUpdate = false;
+        updateCorrelationPlot();
+      }
+      corrUpdateScheduled = false;
+    }, 120);
   }
 
   // Use session memory for layer selection if available, otherwise use config default
@@ -378,6 +651,27 @@ async function createCityGridMap(config) {
   const rootG = svg.append("g").attr("class", "grid-root");
 
   const zoom = d3.zoom()
+    .filter(event => {
+      // Always allow wheel zoom
+      if (event.type === "wheel") return true;
+
+      // When NDVI painting is enabled & NDVI layer is active:
+      // - ignore left-button drag so our paint logic can use it
+      if (enableNdviPainting &&
+          activeLayer &&
+          activeLayer.id === "ndvi" &&
+          event.type === "mousedown" &&
+          event.button === 0) {
+        return false;   // do NOT start zoom on this drag
+      }
+
+      // Otherwise: default behavior (left mouse drags for pan, etc.)
+      // This is a slightly stricter version of d3's default filter:
+      if (event.type === "mousedown" && event.button === 0 && !event.ctrlKey) return true;
+      if (event.type === "dblclick") return true;
+
+      return false;
+    })
     .scaleExtent([1, 8])
     .translateExtent([
       [xOffset, yOffset],
@@ -426,7 +720,8 @@ async function createCityGridMap(config) {
     .attr("x", d => xOffset + d.col * cellWidth)
     .attr("y", d => yOffset + d.row * cellHeight)
     .attr("width", cellWidth + 0.01)
-    .attr("height", cellHeight + 0.01);
+    .attr("height", cellHeight + 0.01)
+    .attr("data-idx", d => d.idx);
 
   const foregroundRects = foregroundG.selectAll("rect")
     .data(foregroundPixels)
@@ -435,7 +730,8 @@ async function createCityGridMap(config) {
     .attr("x", d => xOffset + d.col * cellWidth)
     .attr("y", d => yOffset + d.row * cellHeight)
     .attr("width", cellWidth + 0.01)
-    .attr("height", cellHeight + 0.01);
+    .attr("height", cellHeight + 0.01)
+    .attr("data-idx", d => d.idx);
   
   // Combined selection for updateLayer function
   const rects = pixelG.selectAll("rect");
@@ -513,19 +809,94 @@ async function createCityGridMap(config) {
       const v = layer.values[pixel.idx];
       if (v == null || !Number.isFinite(v)) return;
       const active = (layer.id === activeLayer.id);
-      let val = `${v.toFixed(2)}${layer.unit ? " " + layer.unit : ""}`;
+
+      // --- base value formatting ---
+      const isTempLayer =
+        layer.id === "lst_day" || layer.id === "lst_night";
+
+      let displayVal = v;
+      let unitLabel = layer.unit ? ` ${layer.unit}` : "";
+
+      if (isTempLayer) {
+        const tv = toDisplayTemp(v);
+        if (tv != null) displayVal = tv;
+        unitLabel = ` ${tempSuffix()}`;
+      }
+
+      let val = `${displayVal.toFixed(2)}${unitLabel}`;
+
+      // Land cover override (ignores numeric / units)
       if (layer.id === "lc") {
         const lcCode = Math.round(v);
         val = landCoverTypes[lcCode] || `Class ${lcCode}`;
         if (lcCode == 15 | lcCode == 16) {
-            val = 'Barren';
+          val = "Barren";
         }
         if (lcCode == 17) {
-            val = 'Water/Snow/Ice'
+          val = "Water/Snow/Ice";
         }
       }
+
+      // --- inline delta vs baseline (only for painted pixels) ---
+      let deltaHtml = "";
+      if (
+        enableNdviPainting &&
+        simState &&
+        simState.touchedMask &&
+        simState.touchedMask[pixel.idx]
+      ) {
+        let baseVal = null;
+        let isTempDelta = false;
+
+        if (layer.id === "ndvi" && simState.baseNdvi) {
+          baseVal = simState.baseNdvi[pixel.idx];
+        } else if (layer.id === "lst_day" && simState.baseLstDay) {
+          baseVal = simState.baseLstDay[pixel.idx];
+          isTempDelta = true;
+        } else if (layer.id === "lst_night" && simState.baseLstNight) {
+          baseVal = simState.baseLstNight[pixel.idx];
+          isTempDelta = true;
+        }
+
+        if (baseVal != null && Number.isFinite(baseVal)) {
+          let delta;
+          let unit = "";
+
+          if (layer.id === "ndvi") {
+            // NDVI is unitless and stays unitless
+            delta = v - baseVal;
+            unit = "";
+          } else if (isTempDelta) {
+            // For LST, compute delta in display units (°C or °F)
+            const baseDisp = toDisplayTemp(baseVal);
+            const newDisp  = toDisplayTemp(v);
+            if (baseDisp != null && newDisp != null) {
+              delta = newDisp - baseDisp;
+              unit = ` ${tempSuffix()}`;
+            }
+          }
+
+          if (delta != null && Math.abs(delta) > 1e-4) {
+            const sign = delta >= 0 ? "+" : "";
+            let deltaColor = "#FFD54F"; // default amber
+
+            if (layer.id === "ndvi") {
+              deltaColor = "#A5D6A7";   // greenish for greenness change
+            } else {
+              // cooler temps blue, hotter red
+              deltaColor = delta <= 0 ? "#81D4FA" : "#EF9A9A";
+            }
+
+            deltaHtml =
+              ` <span style="color:${deltaColor};opacity:0.9">` +
+              `(${sign}${delta.toFixed(2)}${unit} vs baseline)` +
+              `</span>`;
+          }
+        }
+      }
+
       rows += `<span style="color:${active ? "#fff" : "#ccc"}">` +
-        `${layer.label}: `+ val + `</span><br>`;
+        `${layer.label}: ` + val + deltaHtml + `</span><br>`;
     });
 
     return (
@@ -536,7 +907,172 @@ async function createCityGridMap(config) {
     );
   };
 
-  const tooltipFn = tooltipFormatter || defaultTooltipFormatter;
+  const tooltipFn = (params) => {
+    // 1) Always build the core tooltip (values + inline deltas + temp units)
+    const baseHtml = defaultTooltipFormatter(params);
+
+    // 2) Let a per-city formatter (if provided) APPEND extra content
+    //    (e.g. a "What if NDVI +0.10?" block), using the same tempUnit, etc.
+    let extraHtml = "";
+    if (typeof tooltipFormatter === "function") {
+      extraHtml = tooltipFormatter({
+        ...params,
+        tempUnit,
+        toDisplayTemp,
+        tempSuffix,
+        simState
+      }) || "";
+    }
+
+    return baseHtml + extraHtml;
+  };
+
+  // ---------- 8.5 Greenness simulator summary box (optional) ----------
+  let simSummaryBox = null;
+
+  function updateSimSummary() {
+    if (!enableNdviPainting || !simState) return;
+    if (!simSummaryBox) return;
+
+    if (!simState.touchedCount) {
+      simSummaryBox.html(
+        `<strong>Greenness simulator</strong><br>` +
+        `<span style="opacity:0.8">Switch to the NDVI layer and drag to “paint” greenness. ` +
+        `We’ll estimate how much that could cool local daytime and nighttime land surface temperatures.</span>`
+      );
+      return;
+    }
+
+    const avgDay = simState.touchedCount
+      ? simState.totalDeltaDay / simState.touchedCount
+      : 0;
+    const avgNight = simState.touchedCount
+      ? simState.totalDeltaNight / simState.touchedCount
+      : 0;
+
+    const factor = tempUnit === "C" ? 1 : 9 / 5;
+    const unit = tempSuffix();
+
+    const avgDayDisp = avgDay * factor;
+    const avgNightDisp = avgNight * factor;
+
+    const wardNames = Array.from(simState.wardsTouched || []);
+    let wardText = "";
+    if (wardNames.length === 1) wardText = wardNames[0];
+    else if (wardNames.length <= 3) wardText = wardNames.join(", ");
+    else wardText = wardNames.slice(0, 3).join(", ") +
+      `, +${wardNames.length - 3} more`;
+
+    simSummaryBox.html(
+      `<strong>Greenness simulator</strong><br>` +
+      `<span style="opacity:0.85">You’ve modified greenness in ` +
+      `${simState.touchedCount} pixels` +
+      (wardText ? ` across <em>${wardText}</em>` : "") +
+      `.</span><br>` +
+      `<span style="opacity:0.9">Avg daytime LST change: ` +
+      `${avgDay >= 0 ? "+" : ""}${avgDay.toFixed(2)} ${unit}</span><br>` +
+      `<span style="opacity:0.9">Avg nighttime LST change: ` +
+      `${avgNight >= 0 ? "+" : ""}${avgNight.toFixed(2)} ${unit}</span>`
+    );
+  }
+
+  if (enableNdviPainting && simCityKey) {
+    simSummaryBox = container.append("div")
+      .attr("class", "ndvi-sim-summary")
+      .style("position", "absolute")
+      .style("bottom", "10px")
+      .style("right", "16px")
+      .style("background", "rgba(0,0,0,0.75)")
+      .style("color", "#fff")
+      .style("padding", "6px 8px")
+      .style("border-radius", "4px")
+      .style("font-size", "11px")
+      .style("max-width", "260px")
+      .style("line-height", "1.3");
+
+    updateSimSummary();
+  }
+
+  // --- Brush controls (size + intensity) ---
+  if (enableNdviPainting && simCityKey && simState) {
+    const brushControls = container.append("div")
+      .attr("class", "ndvi-brush-controls")
+      .style("position", "absolute")
+      .style("bottom", "10px")
+      .style("left", "16px")
+      .style("background", "rgba(0,0,0,0.75)")
+      .style("color", "#fff")
+      .style("padding", "6px 8px")
+      .style("border-radius", "4px")
+      .style("font-size", "11px")
+      .style("max-width", "260px")
+      .style("line-height", "1.3");
+
+    brushControls.append("div")
+      .style("font-weight", "bold")
+      .style("margin-bottom", "4px")
+      .text("Brush settings");
+
+    // Brush size (in pixel radius)
+    const sizeRow = brushControls.append("div")
+      .style("display", "flex")
+      .style("align-items", "center")
+      .style("gap", "6px")
+      .style("margin-bottom", "4px");
+
+    sizeRow.append("span")
+      .text("Size:");
+
+    const sizeValue = sizeRow.append("span")
+      .style("font-weight", "bold")
+      .text(`${simState.brushRadius ?? DEFAULT_BRUSH_RADIUS}px`);
+
+    const sizeInput = sizeRow.append("input")
+      .attr("type", "range")
+      .attr("min", 0)
+      .attr("max", 4)
+      .attr("step", 1)
+      .attr("value", simState.brushRadius ?? DEFAULT_BRUSH_RADIUS)
+      .style("flex", "1");
+
+    sizeInput.on("input", (event) => {
+      const r = +event.target.value;
+      simState.brushRadius = r;
+      sizeValue.text(`${r}px`);
+    });
+
+    // Brush intensity (NDVI delta per pass)
+    const intensityRow = brushControls.append("div")
+      .style("display", "flex")
+      .style("align-items", "center")
+      .style("gap", "6px");
+
+    intensityRow.append("span")
+      .text("Strength:");
+
+    const initialIntensity = Math.round(
+      100 * (simState.paintStep || DEFAULT_PAINT_DELTA)
+    ); // 0.02 -> 2
+
+    const intensityValue = intensityRow.append("span")
+      .style("font-weight", "bold")
+      .text(`+${(initialIntensity / 100).toFixed(2)} NDVI / pass`);
+
+    const intensityInput = intensityRow.append("input")
+      .attr("type", "range")
+      .attr("min", 1)   // 0.01
+      .attr("max", 10)  // 0.10
+      .attr("step", 1)
+      .attr("value", initialIntensity)
+      .style("flex", "1");
+
+    intensityInput.on("input", (event) => {
+      const v = +event.target.value;
+      const step = v / 100; // 1 → 0.01, 10 → 0.10
+      simState.paintStep = step;
+      intensityValue.text(`+${step.toFixed(2)} NDVI / pass`);
+    });
+  }
 
   // ---------- 9. Legend ----------
   const legendMargin = 16;
@@ -579,8 +1115,67 @@ async function createCityGridMap(config) {
     .style("max-height", "300px")
     .style("overflow-y", "auto");
 
+  // --- Temperature unit toggle (for tooltips, legend labels, summary) ---
+  const unitControls = container.append("div")
+    .attr("class", "temp-unit-toggle")
+    .style("position", "absolute")
+    .style("top", "12px")
+    .style("left", "16px")
+    .style("background", "rgba(0,0,0,0.75)")
+    .style("color", "#fff")
+    .style("padding", "4px 6px")
+    .style("border-radius", "4px")
+    .style("font-size", "11px")
+    .style("display", "flex")
+    .style("gap", "4px")
+    .style("align-items", "center");
+
+  unitControls.append("span")
+    .text("Temp:");
+
+  const cBtn = unitControls.append("button")
+    .text("°C")
+    .style("border", "none")
+    .style("padding", "2px 4px")
+    .style("border-radius", "3px")
+    .style("cursor", "pointer");
+
+  const fBtn = unitControls.append("button")
+    .text("°F")
+    .style("border", "none")
+    .style("padding", "2px 4px")
+    .style("border-radius", "3px")
+    .style("cursor", "pointer");
+
+  function updateUnitButtons() {
+    cBtn
+      .style("background", tempUnit === "C" ? "#fff" : "transparent")
+      .style("color", tempUnit === "C" ? "#000" : "#fff");
+    fBtn
+      .style("background", tempUnit === "F" ? "#fff" : "transparent")
+      .style("color", tempUnit === "F" ? "#000" : "#fff");
+  }
+
+  cBtn.on("click", () => {
+    if (tempUnit === "C") return;
+    tempUnit = "C";
+    updateUnitButtons();
+    updateLayer(false);   // refresh legend labels
+    updateSimSummary();   // refresh summary units
+  });
+
+  fBtn.on("click", () => {
+    if (tempUnit === "F") return;
+    tempUnit = "F";
+    updateUnitButtons();
+    updateLayer(false);
+    updateSimSummary();
+  });
+
+  updateUnitButtons();
+
   // ---------- 10. Layer toggle buttons ----------
-  let activeLayer = layerStates.find(l => l.id === activeLayerId) || layerStates[0];
+  activeLayer = layerStates.find(l => l.id === activeLayerId) || layerStates[0];
   activeLayerId = activeLayer.id;
 
   // Background opacity control for London
@@ -696,6 +1291,246 @@ async function createCityGridMap(config) {
             .style("color", b => b.id === activeLayerId ? "#fff" : "#333");
         });
     }
+  }
+
+  // ---- Correlation panel UI (only if ≥2 numeric layers) ----
+  if (numericLayers.length >= 2) {
+    // default to first 2
+    corrXId = numericLayers[0].id;
+    corrYId = numericLayers[1].id;
+
+    corrPanel = container.append("div")
+      .attr("class", "corr-panel")
+      .style("position", "absolute")
+      .style("top", "48px")
+      .style("right", "16px")
+      .style("background", "rgba(250,250,250,0.96)")
+      .style("border-radius", "4px")
+      .style("box-shadow", "0 1px 3px rgba(0,0,0,0.25)")
+      .style("padding", "6px 8px")
+      .style("font-size", "11px")
+      .style("max-width", "260px");
+
+    const header = corrPanel.append("div")
+      .style("display", "flex")
+      .style("align-items", "center")
+      .style("justify-content", "space-between")
+      .style("margin-bottom", "4px");
+
+    header.append("span")
+      .style("font-weight", "bold")
+      .text("Feature correlation");
+
+    const toggle = header.append("span")
+      .style("cursor", "pointer")
+      .style("font-size", "10px")
+      .style("color", "#0077cc")
+      .text("Hide");
+
+    corrContent = corrPanel.append("div");
+
+    toggle.on("click", () => {
+      const hidden = corrContent.style("display") === "none";
+      corrContent.style("display", hidden ? "block" : "none");
+      toggle.text(hidden ? "Hide" : "Show");
+    });
+
+    // Controls (X / Y selectors)
+    const controlRow = corrContent.append("div")
+      .style("display", "flex")
+      .style("gap", "4px")
+      .style("align-items", "center")
+      .style("margin-bottom", "4px");
+
+    controlRow.append("span").text("X:");
+
+    corrXSelect = controlRow.append("select")
+      .style("flex", "1")
+      .style("font-size", "11px");
+
+    controlRow.append("span").text("Y:");
+
+    corrYSelect = controlRow.append("select")
+      .style("flex", "1")
+      .style("font-size", "11px");
+
+    function populateCorrSelect(select, chosenId) {
+      select.selectAll("option").remove();
+      select.selectAll("option")
+        .data(numericLayers, d => d.id)
+        .enter()
+        .append("option")
+        .attr("value", d => d.id)
+        .property("selected", d => d.id === chosenId)
+        .text(d => d.label.split(" (")[0]);
+    }
+
+    populateCorrSelect(corrXSelect, corrXId);
+    populateCorrSelect(corrYSelect, corrYId);
+
+    corrXSelect.on("change", function() {
+      corrXId = this.value;
+      if (corrXId === corrYId) {
+        // pick a different Y if same
+        const alt = numericLayers.find(l => l.id !== corrXId);
+        if (alt) {
+          corrYId = alt.id;
+          corrYSelect.property("value", corrYId);
+        }
+      }
+      requestCorrelationUpdate();
+    });
+
+    corrYSelect.on("change", function() {
+      corrYId = this.value;
+      if (corrYId === corrXId) {
+        const alt = numericLayers.find(l => l.id !== corrYId);
+        if (alt) {
+          corrXId = alt.id;
+          corrXSelect.property("value", corrXId);
+        }
+      }
+      requestCorrelationUpdate();
+    });
+
+    // SVG for scatterplot
+    corrSvg = corrContent.append("svg")
+      .attr("width", 240)
+      .attr("height", 170);
+
+    // kick off initial draw
+    requestCorrelationUpdate();
+  }
+
+  function updateCorrelationPlot() {
+    if (!corrSvg || !corrPanel || !numericLayers.length || !corrXId || !corrYId) return;
+
+    const xLayer = numericLayers.find(l => l.id === corrXId);
+    const yLayer = numericLayers.find(l => l.id === corrYId);
+    if (!xLayer || !yLayer) return;
+
+    const xValsRaw = xLayer.values;
+    const yValsRaw = yLayer.values;
+
+    const xs = [];
+    const ys = [];
+
+    const n = Math.min(xValsRaw.length, yValsRaw.length);
+    for (let i = 0; i < n; i++) {
+      const vx = xValsRaw[i];
+      const vy = yValsRaw[i];
+      if (!Number.isFinite(vx) || !Number.isFinite(vy)) continue;
+      xs.push(vx);
+      ys.push(vy);
+    }
+    if (xs.length < 2) {
+      corrSvg.selectAll("*").remove();
+      corrSvg.append("text")
+        .attr("x", 120)
+        .attr("y", 85)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 10)
+        .attr("fill", "#666")
+        .text("Not enough data");
+      return;
+    }
+
+    // Sample up to 500 points for the scatter
+    const sampleIdxs = [];
+    const maxPoints = 500;
+    if (xs.length <= maxPoints) {
+      for (let i = 0; i < xs.length; i++) sampleIdxs.push(i);
+    } else {
+      for (let i = 0; i < maxPoints; i++) {
+        sampleIdxs.push(Math.floor(Math.random() * xs.length));
+      }
+    }
+
+    // Use *display* values for axes (so temps obey °C/°F toggle)
+    const dispX = [];
+    const dispY = [];
+    const isXTemp = xLayer.id === "lst_day" || xLayer.id === "lst_night";
+    const isYTemp = yLayer.id === "lst_day" || yLayer.id === "lst_night";
+
+    sampleIdxs.forEach(i => {
+      let vx = xs[i];
+      let vy = ys[i];
+      if (isXTemp) vx = toDisplayTemp(vx);
+      if (isYTemp) vy = toDisplayTemp(vy);
+      dispX.push(vx);
+      dispY.push(vy);
+    });
+
+    const r = computeCorrelation(xs, ys); // correlation unaffected by linear °C→°F
+
+    const margin = { top: 16, right: 8, bottom: 24, left: 30 };
+    const width  = +corrSvg.attr("width")  - margin.left - margin.right;
+    const height = +corrSvg.attr("height") - margin.top  - margin.bottom;
+
+    corrSvg.selectAll("*").remove();
+    const g = corrSvg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const xScale = d3.scaleLinear()
+      .domain(d3.extent(dispX))
+      .nice()
+      .range([0, width]);
+
+    const yScale = d3.scaleLinear()
+      .domain(d3.extent(dispY))
+      .nice()
+      .range([height, 0]);
+
+    const xAxis = d3.axisBottom(xScale).ticks(4);
+    const yAxis = d3.axisLeft(yScale).ticks(4);
+
+    g.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(xAxis)
+      .selectAll("text")
+      .style("font-size", "9px");
+
+    g.append("g")
+      .call(yAxis)
+      .selectAll("text")
+      .style("font-size", "9px");
+
+    // Points
+    g.append("g")
+      .selectAll("circle")
+      .data(d3.range(dispX.length))
+      .enter()
+      .append("circle")
+      .attr("cx", i => xScale(dispX[i]))
+      .attr("cy", i => yScale(dispY[i]))
+      .attr("r", 1.8)
+      .attr("fill", "rgba(33,150,243,0.7)");
+
+    // Axes labels
+    g.append("text")
+      .attr("x", width / 2)
+      .attr("y", height + 18)
+      .attr("text-anchor", "middle")
+      .attr("font-size", 9)
+      .attr("fill", "#444")
+      .text(xLayer.label.split(" (")[0] + (isXTemp ? ` (${tempSuffix()})` : ""));
+
+    g.append("text")
+      .attr("transform", `rotate(-90)`)
+      .attr("x", -height / 2)
+      .attr("y", -24)
+      .attr("text-anchor", "middle")
+      .attr("font-size", 9)
+      .attr("fill", "#444")
+      .text(yLayer.label.split(" (")[0] + (isYTemp ? ` (${tempSuffix()})` : ""));
+
+    // Correlation label
+    g.append("text")
+      .attr("x", 0)
+      .attr("y", -4)
+      .attr("font-size", 10)
+      .attr("fill", "#333")
+      .text(`r = ${r != null ? r.toFixed(2) : "–"}`);
   }
 
   // ---------- 11. Apply active layer (colors + legend) ----------
@@ -972,6 +1807,15 @@ async function createCityGridMap(config) {
     const colorScale = d3.scaleSequential(activeLayer.palette)
       .domain([activeLayer.min, activeLayer.max]);
 
+    // Expose for painting so we can recolor a single rect
+    activeLayer.colorScale = colorScale;
+
+    if (enableNdviPainting && activeLayer.id === "ndvi") {
+      svg.style("cursor", "crosshair");
+    } else {
+      svg.style("cursor", "default");
+    }
+
     // Check if this is a land cover layer
     const isLandCover = activeLayer.id === "lc" || activeLayer.label === "Land Cover Type (grouped)";
 
@@ -1124,6 +1968,20 @@ async function createCityGridMap(config) {
         .attr("height", legendHeight)
         .attr("fill", `url(#${gradientId})`);
 
+      const isTempLegend =
+        activeLayer.id === "lst_day" || activeLayer.id === "lst_night";
+
+      const minDisplay = isTempLegend
+        ? toDisplayTemp(activeLayer.min)
+        : activeLayer.min;
+      const maxDisplay = isTempLegend
+        ? toDisplayTemp(activeLayer.max)
+        : activeLayer.max;
+
+      const legendUnit = isTempLegend
+        ? ` ${tempSuffix()}`
+        : (activeLayer.unit ? ` ${activeLayer.unit}` : "");
+
       legendSvg.append("text")
         .attr("x", textWidth - 5)
         .attr("y", legendHeight)
@@ -1132,7 +1990,10 @@ async function createCityGridMap(config) {
         .attr("fill", "#333")
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "middle")
-        .text((activeLayer.min.toFixed(1) === "-0.0" ? "0.0" : activeLayer.min.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+        .text(
+          (minDisplay.toFixed(1) === "-0.0" ? "0.0" : minDisplay.toFixed(1)) +
+          legendUnit
+        );
 
       legendSvg.append("text")
         .attr("x", textWidth - 5)
@@ -1142,7 +2003,10 @@ async function createCityGridMap(config) {
         .attr("fill", "#333")
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "middle")
-        .text((activeLayer.max.toFixed(1) === "-0.0" ? "0.0" : activeLayer.max.toFixed(1)) + (activeLayer.unit ? " " + activeLayer.unit : ""));
+        .text(
+          (maxDisplay.toFixed(1) === "-0.0" ? "0.0" : maxDisplay.toFixed(1)) +
+          legendUnit
+        );
     }
 
     // Broadcast layer change so other components (like ward comparison) can react
@@ -1153,12 +2017,152 @@ async function createCityGridMap(config) {
         layer: activeLayer
       }
     }));
+
+    // Also refresh correlation view if it exists
+    requestCorrelationUpdate();
   }
 
   updateLayer(false, isInitialRender); // initial paint
 
-  // ---------- 12. Pixel hover (tooltips + wardHover event) ----------
+  // ---------- 12. Pixel hover (tooltips + wardHover event + NDVI painting) ----------
+  let isPainting = false;
+
+  // Core: apply NDVI/LST updates to a single pixel (by pixel object)
+  function applyPaintAtPixel(pixel, rectSel) {
+    if (!enableNdviPainting || !simState) return;
+    if (!pixel.wardId) return;  // ignore outside-city pixels
+
+    const idx = pixel.idx;
+    const oldNdvi = simState.currNdvi[idx];
+    if (!Number.isFinite(oldNdvi)) return;
+
+    const baseNdvi = simState.baseNdvi[idx];
+    const step = simState.paintStep || DEFAULT_PAINT_DELTA;
+
+    let newNdvi = oldNdvi + step;
+    if (newNdvi > NDVI_MAX_CLAMP) newNdvi = NDVI_MAX_CLAMP;
+    if (newNdvi <= oldNdvi + 1e-6) return;
+
+    simState.currNdvi[idx] = newNdvi;
+
+    const nPixels = simState.baseNdvi.length;
+
+    // Ensure per-pixel delta buffers exist
+    if (!simState.deltaDay || simState.deltaDay.length !== nPixels) {
+      simState.deltaDay = new Float32Array(nPixels);
+      simState.deltaNight = new Float32Array(nPixels);
+    }
+    if (!simState.touchedMask || simState.touchedMask.length !== nPixels) {
+      simState.touchedMask = new Uint8Array(nPixels);
+    }
+
+    // --- Daytime update ---
+    if (simState.baseLstDay && simState.currLstDay && ndviLstModels) {
+      const resDay = estimateLstChangeFromNdvi({
+        cityName,
+        baseNdvi,
+        newNdvi,
+        target: "day"
+      });
+      if (resDay) {
+        const oldDelta = simState.deltaDay[idx] || 0;
+        const newDelta = resDay.newPred - simState.baseLstDay[idx];
+
+        simState.currLstDay[idx] = resDay.newPred;
+        simState.totalDeltaDay += (newDelta - oldDelta);
+        simState.deltaDay[idx] = newDelta;
+      }
+    }
+
+    // --- Nighttime update ---
+    if (simState.baseLstNight && simState.currLstNight && ndviLstModels) {
+      const resNight = estimateLstChangeFromNdvi({
+        cityName,
+        baseNdvi,
+        newNdvi,
+        target: "night"
+      });
+      if (resNight) {
+        const oldDelta = simState.deltaNight[idx] || 0;
+        const newDelta = resNight.newPred - simState.baseLstNight[idx];
+
+        simState.currLstNight[idx] = resNight.newPred;
+        simState.totalDeltaNight += (newDelta - oldDelta);
+        simState.deltaNight[idx] = newDelta;
+      }
+    }
+
+    // Mark pixel / ward as touched
+    if (!simState.touchedMask[idx]) {
+      simState.touchedMask[idx] = 1;
+      simState.touchedCount += 1;
+    }
+    if (pixel.wardId && wardInfoMap.has(pixel.wardId)) {
+      const w = wardInfoMap.get(pixel.wardId);
+      const name = w && w.name ? w.name : `${subunit} ${pixel.wardId}`;
+      simState.wardsTouched.add(name);
+    }
+
+    // Recolor this specific rect if we’re on NDVI
+    if (activeLayer.id === "ndvi" && activeLayer.colorScale && rectSel && !rectSel.empty()) {
+      rectSel.attr("fill", activeLayer.colorScale(newNdvi));
+    }
+  }
+
+  // Wrapper: apply brush (center + neighborhood)
+  function paintPixel(d, rectSel) {
+    if (!enableNdviPainting || !simState) return;
+    if (!isPainting) return;
+    if (!activeLayer || activeLayer.id !== "ndvi") return;
+
+    const radius = (simState.brushRadius != null)
+      ? simState.brushRadius
+      : DEFAULT_BRUSH_RADIUS;
+
+    // Center pixel
+    applyPaintAtPixel(d, rectSel);
+
+    // Neighborhood (circular brush in grid space)
+    if (radius > 0) {
+      const r = radius;
+      const r2 = r * r;
+
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const rr = d.row + dr;
+          const cc = d.col + dc;
+          if (rr < 0 || rr >= rasterHeight || cc < 0 || cc >= rasterWidth) continue;
+          if (dr * dr + dc * dc > r2) continue;
+
+          const idx2 = rr * rasterWidth + cc;
+          const neighborPixel = pixels[idx2];
+          if (!neighborPixel || !neighborPixel.wardId) continue;
+
+          const neighborRect = pixelG.select(`rect[data-idx='${idx2}']`);
+          applyPaintAtPixel(neighborPixel, neighborRect);
+        }
+      }
+    }
+
+    updateSimSummary();
+    requestCorrelationUpdate();
+  }
+
+  svg
+    .on("mouseup", () => { isPainting = false; })
+    .on("mouseleave", () => { isPainting = false; });
+
   rects
+    .on("mousedown", function (event, d) {
+      // Start painting only on NDVI layer with left-click
+      if (enableNdviPainting && activeLayer && activeLayer.id === "ndvi" && event.button === 0) {
+        isPainting = true;
+        paintPixel(d, d3.select(this));
+        event.preventDefault();
+        event.stopPropagation(); // don’t start zoom/pan on this drag
+      }
+    })
     .on("mouseenter", function (event, d) {
       d3.select(this)
         .attr("stroke", "#000")
@@ -1170,7 +2174,12 @@ async function createCityGridMap(config) {
         ward,
         activeLayer,
         allLayers: layerStates,
-        subunit
+        subunit,
+        cityName,
+        tempUnit,
+        tempSuffix,
+        toDisplayTemp,
+        simState
       });
 
       tooltip
@@ -1188,11 +2197,20 @@ async function createCityGridMap(config) {
           }
         }));
       }
+
+      // If already painting, this pixel should get updated too
+      paintPixel(d, d3.select(this));
     })
-    .on("mousemove", function (event) {
+    .on("mousemove", function (event, d) {
       tooltip
         .style("left", (event.pageX + 12) + "px")
         .style("top",  (event.pageY - 28) + "px");
+
+      if (isPainting && enableNdviPainting && activeLayer && activeLayer.id === "ndvi") {
+        paintPixel(d, d3.select(this));
+        event.preventDefault();
+        event.stopPropagation();
+      }
     })
     .on("mouseleave", function (event, d) {
       d3.select(this).attr("stroke", null);
@@ -1239,7 +2257,9 @@ async function createMultiCityGridMap(config) {
     cityConfigs,           // [{ id, label, gridPath, wardStatsPath, cityName, layers, ... }]
     defaultCityId = null,
     bivariate = false,     // enable bivariate mode
-    bivariateVars = null   // { var1: "ndvi", var2: "lst_day" }
+    bivariateVars = null,   // { var1: "ndvi", var2: "lst_day" }
+
+    enableNdviPainting = false
   } = config;
 
   if (!cityConfigs || !cityConfigs.length) {
@@ -1373,7 +2393,8 @@ async function createMultiCityGridMap(config) {
       onReady: cityConf.onReady,
       isInitialRender: true,
       bivariate: bivariate,
-      bivariateVars: bivariateVars
+      bivariateVars: bivariateVars,
+      enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true)
     });
   }
 
@@ -1667,165 +2688,235 @@ createMultiCityGridMap({
 //   // You can pass a custom tooltipFormatter here later if you want
 // }).catch(err => console.error("Error rendering NDVI/LST map:", err));
 
-// Multi-city greenness vs temperature map (Tokyo <-> London toggle)
-createMultiCityGridMap({
-  containerId: "#ndvi_heatMap",
-  cityConfigs: [
-    {
-      id: "tokyo",
-      label: "Tokyo",
-      gridPath: "data/tokyo/tokyo_grid.json",
-      wardStatsPath: "data/tokyo/tokyo_wards.json",
-      cityName: "Tokyo",
-      subunit: "Ward",
-      layers: [
-        {
-          id: "ndvi",
-          valueKey: "ndvi",
-          minKey: "ndvi_min",
-          maxKey: "ndvi_max",
-          label: "Greenness (Vegetation)",
-          unit: "",
-          palette: d3.interpolateYlGn
-        },
-        {
-          id: "lst_day",
-          valueKey: "lst_day_C",
-          minKey: "lst_day_min",
-          maxKey: "lst_day_max",
-          label: "Daytime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateInferno
-        },
-        {
-          id: "lst_night",
-          valueKey: "lst_night_C",
-          minKey: "lst_night_min",
-          maxKey: "lst_night_max",
-          label: "Nighttime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateMagma
-        }
-      ],
-      showLayerToggle: true
-    },
-    {
-      id: "london",
-      label: "London",
-      gridPath: "data/london/london_grid.json",
-      wardStatsPath: "data/london/london_boroughs.json",
-      cityName: "London",
-      subunit: "Borough",
-      layers: [
-        {
-          id: "ndvi",
-          valueKey: "ndvi",
-          minKey: "ndvi_min",
-          maxKey: "ndvi_max",
-          label: "Greenness (Vegetation)",
-          unit: "",
-          palette: d3.interpolateYlGn
-        },
-        {
-          id: "lst_day",
-          valueKey: "lst_day_C",
-          minKey: "lst_day_min",
-          maxKey: "lst_day_max",
-          label: "Daytime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateInferno
-        },
-        {
-          id: "lst_night",
-          valueKey: "lst_night_C",
-          minKey: "lst_night_min",
-          maxKey: "lst_night_max",
-          label: "Nighttime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateMagma
-        }
-      ],
-      showLayerToggle: true
-    },
-    {
-      id: "nyc",
-      label: "New York City",
-      gridPath: "data/nyc/nyc_grid.json",
-      wardStatsPath: "data/nyc/nyc_boroughs.json",
-      cityName: "New York City",
-      subunit: "Borough",
-      layers: [
-        {
-          id: "ndvi",
-          valueKey: "ndvi",
-          minKey: "ndvi_min",
-          maxKey: "ndvi_max",
-          label: "Greenness (Vegetation)",
-          unit: "",
-          palette: d3.interpolateYlGn
-        },
-        {
-          id: "lst_day",
-          valueKey: "lst_day_C",
-          minKey: "lst_day_min",
-          maxKey: "lst_day_max",
-          label: "Daytime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateInferno
-        },
-        {
-          id: "lst_night",
-          valueKey: "lst_night_C",
-          minKey: "lst_night_min",
-          maxKey: "lst_night_max",
-          label: "Nighttime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateMagma
-        }
-      ],
-      showLayerToggle: true
-    },
-    {
-      id: "sandiego",
-      label: "San Diego County",
-      gridPath: "data/san-diego/sandiego_grid.json",
-      wardStatsPath: "data/san-diego/sandiego_boroughs.json",
-      cityName: "San Diego County",
-      subunit: "Neighborhood",
-      layers: [
-        {
-          id: "ndvi",
-          valueKey: "ndvi",
-          minKey: "ndvi_min",
-          maxKey: "ndvi_max",
-          label: "Greenness (Vegetation)",
-          unit: "",
-          palette: d3.interpolateYlGn
-        },
-        {
-          id: "lst_day",
-          valueKey: "lst_day_C",
-          minKey: "lst_day_min",
-          maxKey: "lst_day_max",
-          label: "Daytime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateInferno
-        },
-        {
-          id: "lst_night",
-          valueKey: "lst_night_C",
-          minKey: "lst_night_min",
-          maxKey: "lst_night_max",
-          label: "Nighttime Temperature (°C)",
-          unit: "°C",
-          palette: d3.interpolateMagma
-        }
-      ],
-      showLayerToggle: true
+// ------------------------------------------------------------------
+// Multi-city greenness vs temperature map WITH what-if simulator
+// ------------------------------------------------------------------
+
+fetch("data/models/ndvi_lst_response_curves.json")
+  .then(resp => resp.json())
+  .then(models => {
+    ndviLstModels = models;
+
+    // Factory for a small "What if NDVI +0.10?" block that
+    // gets appended *after* the main tooltip.
+    function makeWhatIfTooltip(cityName) {
+      return ({ pixel, activeLayer, allLayers, tempUnit, tempSuffix }) => {
+        // Find NDVI at this pixel (current value, possibly already painted)
+        let ndviVal = null;
+        allLayers.forEach(layer => {
+          const v = layer.values[pixel.idx];
+          if (v == null || !Number.isFinite(v)) return;
+          if (layer.id === "ndvi") ndviVal = v;
+        });
+
+        if (ndviVal == null || !Number.isFinite(ndviVal)) return "";
+
+        const newNdvi = ndviVal + 0.10;
+
+        // Target temperature layer: whichever is active, default to "day"
+        let target = null;
+        if (activeLayer.id === "lst_day") target = "day";
+        else if (activeLayer.id === "lst_night") target = "night";
+        else target = "day";
+
+        const res = estimateLstChangeFromNdvi({
+          cityName,
+          baseNdvi: ndviVal,
+          newNdvi,
+          target
+        });
+
+        if (!res) return "";
+
+        // res.delta is in °C; convert to display unit (°C or °F)
+        const factor = tempUnit === "C" ? 1 : 9 / 5;
+        const deltaDisp = res.delta * factor;
+        const sign = deltaDisp >= 0 ? "+" : "";
+        const srcLabel = res.source === "city-curve"
+          ? "city-specific curve"
+          : "pooled model";
+
+        return (
+          `<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.2);padding-top:3px;font-size:11px;opacity:0.9">` +
+          `<strong>What if NDVI +0.10?</strong><br>` +
+          `${target === "day" ? "Daytime" : "Nighttime"} LST change: ` +
+          `${sign}${deltaDisp.toFixed(2)} ${tempSuffix()} ` +
+          `<span style="opacity:0.7">(${srcLabel})</span>` +
+          `</div>`
+        );
+      };
     }
-  ],
-  defaultCityId: "tokyo"
-}).catch(err => console.error("Error rendering multi-city NDVI/LST map:", err));
+
+    // Now build the actual map, wiring the tooltipFormatter per city
+    return createMultiCityGridMap({
+      containerId: "#ndvi_heatMap",
+      enableNdviPainting: true,
+      cityConfigs: [
+        {
+          id: "tokyo",
+          label: "Tokyo",
+          gridPath: "data/tokyo/tokyo_grid.json",
+          wardStatsPath: "data/tokyo/tokyo_wards.json",
+          cityName: "Tokyo",
+          subunit: "Ward",
+          enableNdviPainting: true, 
+          layers: [
+            {
+              id: "ndvi",
+              valueKey: "ndvi",
+              minKey: "ndvi_min",
+              maxKey: "ndvi_max",
+              label: "Greenness (Vegetation)",
+              unit: "",
+              palette: d3.interpolateYlGn
+            },
+            {
+              id: "lst_day",
+              valueKey: "lst_day_C",
+              minKey: "lst_day_min",
+              maxKey: "lst_day_max",
+              label: "Daytime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateInferno
+            },
+            {
+              id: "lst_night",
+              valueKey: "lst_night_C",
+              minKey: "lst_night_min",
+              maxKey: "lst_night_max",
+              label: "Nighttime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateMagma
+            }
+          ],
+          showLayerToggle: true,
+          tooltipFormatter: makeWhatIfTooltip("Tokyo")
+        },
+        {
+          id: "london",
+          label: "London",
+          gridPath: "data/london/london_grid.json",
+          wardStatsPath: "data/london/london_boroughs.json",
+          cityName: "London",
+          subunit: "Borough",
+          enableNdviPainting: true, 
+          layers: [
+            {
+              id: "ndvi",
+              valueKey: "ndvi",
+              minKey: "ndvi_min",
+              maxKey: "ndvi_max",
+              label: "Greenness (Vegetation)",
+              unit: "",
+              palette: d3.interpolateYlGn
+            },
+            {
+              id: "lst_day",
+              valueKey: "lst_day_C",
+              minKey: "lst_day_min",
+              maxKey: "lst_day_max",
+              label: "Daytime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateInferno
+            },
+            {
+              id: "lst_night",
+              valueKey: "lst_night_C",
+              minKey: "lst_night_min",
+              maxKey: "lst_night_max",
+              label: "Nighttime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateMagma
+            }
+          ],
+          showLayerToggle: true,
+          tooltipFormatter: makeWhatIfTooltip("London")
+        },
+        {
+          id: "nyc",
+          label: "New York City",
+          gridPath: "data/nyc/nyc_grid.json",
+          wardStatsPath: "data/nyc/nyc_boroughs.json",
+          cityName: "New York City",
+          subunit: "Borough",
+          enableNdviPainting: true, 
+          layers: [
+            {
+              id: "ndvi",
+              valueKey: "ndvi",
+              minKey: "ndvi_min",
+              maxKey: "ndvi_max",
+              label: "Greenness (Vegetation)",
+              unit: "",
+              palette: d3.interpolateYlGn
+            },
+            {
+              id: "lst_day",
+              valueKey: "lst_day_C",
+              minKey: "lst_day_min",
+              maxKey: "lst_day_max",
+              label: "Daytime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateInferno
+            },
+            {
+              id: "lst_night",
+              valueKey: "lst_night_C",
+              minKey: "lst_night_min",
+              maxKey: "lst_night_max",
+              label: "Nighttime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateMagma
+            }
+          ],
+          showLayerToggle: true,
+          tooltipFormatter: makeWhatIfTooltip("New York City")
+        },
+        {
+          id: "sandiego",
+          label: "San Diego County",
+          gridPath: "data/san-diego/sandiego_grid.json",
+          wardStatsPath: "data/san-diego/sandiego_boroughs.json",
+          cityName: "San Diego County",
+          subunit: "Neighborhood",
+          enableNdviPainting: true, 
+          layers: [
+            {
+              id: "ndvi",
+              valueKey: "ndvi",
+              minKey: "ndvi_min",
+              maxKey: "ndvi_max",
+              label: "Greenness (Vegetation)",
+              unit: "",
+              palette: d3.interpolateYlGn
+            },
+            {
+              id: "lst_day",
+              valueKey: "lst_day_C",
+              minKey: "lst_day_min",
+              maxKey: "lst_day_max",
+              label: "Daytime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateInferno
+            },
+            {
+              id: "lst_night",
+              valueKey: "lst_night_C",
+              minKey: "lst_night_min",
+              maxKey: "lst_night_max",
+              label: "Nighttime Temperature (°C)",
+              unit: "°C",
+              palette: d3.interpolateMagma
+            }
+          ],
+          showLayerToggle: true,
+          tooltipFormatter: makeWhatIfTooltip("San Diego County")
+        }
+      ],
+      defaultCityId: "tokyo"
+    });
+  })
+  .catch(err => console.error("Error rendering multi-city NDVI/LST map with models:", err));
 
 // ------------------------------------------------------------------
 // Land Cover vs Temperature map (all cities)
