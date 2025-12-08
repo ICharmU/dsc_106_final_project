@@ -17,6 +17,7 @@
   <script type="module" src="scripts/genericMap.js" defer></script>
   <script type="module" src="scripts/compare.js" defer></script>
   <script type="module" src="scripts/intercity.js" defer></script>
+  <script type="module" src="scripts/uhiCompare.js" defer></script>
 
   <!-- Scrollama for scrollytelling -->
   <script src="https://unpkg.com/scrollama"></script>
@@ -61,6 +62,17 @@
       <div id="cityCompare" class="comparison-panel">
         <div class="panel-header" data-panel-id="cityCompare">
           <span class="panel-title">Across-city comparison</span>
+          <div class="panel-controls">
+            <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
+            <button class="panel-btn panel-hide" title="Collapse">–</button>
+          </div>
+        </div>
+        <div class="panel-body"></div>
+      </div>
+
+      <div id="uhiCompare" class="comparison-panel">
+        <div class="panel-header" data-panel-id="wardCompare">
+          <span class="panel-title">Urban Heat Island comparison</span>
           <div class="panel-controls">
             <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
             <button class="panel-btn panel-hide" title="Collapse">–</button>

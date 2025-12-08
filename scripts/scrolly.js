@@ -91,6 +91,9 @@ function showWardCompare(show) {
 function showCityCompare(show) {
   d3.select("#cityCompare").style("display", show ? "block" : "none");
 }
+function showUhiCompare(show) {
+  d3.select("#uhiCompare").style("display", show ? "block" : "none");
+}
 
 // ------------------------------------
 // Overlay text update
@@ -414,6 +417,7 @@ const scenes = [
     setLayerControls([], null);
     showWardCompare(false);
     showCityCompare(false);
+    showUhiCompare(false); 
   },
 
   // 1: Intra-city inequality – wardCompare visible
@@ -442,6 +446,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(false); 
   },
 
   // 2: Day vs night heat (still London)
@@ -470,6 +475,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true); 
   },
 
   // 3: NDVI + correlation – London
@@ -499,6 +505,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 4: Across-city, daytime LST
@@ -529,6 +536,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 5: What-if greenness simulator – NDVI, painting on
@@ -557,6 +565,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 6: Inter-neighborhood across cities
@@ -583,6 +592,7 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 7: Final bivariate view + inter-city chart
@@ -603,6 +613,7 @@ const scenes = [
 
     showWardCompare(false);
     showCityCompare(true);
+    showUhiCompare(true);
   }
 ];
 
