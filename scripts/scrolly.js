@@ -734,4 +734,40 @@ function initScroller() {
       window.location.reload();
     });
   }
+
+  // Add hover behavior to overlayText to allow tooltip interaction
+  const overlayText = document.getElementById("overlayText");
+  if (overlayText) {
+    let checkInterval = null;
+    
+    overlayText.addEventListener("mouseenter", () => {
+      // Fade out and disable pointer events
+      overlayText.style.opacity = "0";
+      overlayText.style.pointerEvents = "none";
+      
+      // Start checking mouse position
+      checkInterval = setInterval(() => {
+        const rect = overlayText.getBoundingClientRect();
+        const mouseX = window.event?.clientX || 0;
+        const mouseY = window.event?.clientY || 0;
+        
+        // Check if mouse is outside the box
+        const isOutside = mouseX < rect.left || mouseX > rect.right || 
+                         mouseY < rect.top || mouseY > rect.bottom;
+        
+        if (isOutside) {
+          // Fade back in and restore pointer events
+          overlayText.style.opacity = "1";
+          overlayText.style.pointerEvents = "auto";
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      }, 50); // Check every 50ms
+    });
+    
+    // Track mouse position globally for the interval check
+    document.addEventListener("mousemove", (e) => {
+      window.event = e;
+    });
+  }
 })();

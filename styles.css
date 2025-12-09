@@ -63,6 +63,7 @@ h2 {
     padding: 12px 16px;
     border-radius: 8px;
     pointer-events: auto;
+    transition: opacity 0.3s ease;
     /* so pan/zoom still work */
 }
 
