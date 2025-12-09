@@ -410,8 +410,8 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setLayer("lst_night", { animate: false });
     await mapController.setlcBorder(false);
+    mapController.setLayer("lst_night", { animate: false });
 
     // 🔑 Only temp-unit pill, nothing else yet
     mapController.setControlsVisibility({
@@ -502,8 +502,8 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setLayer("ndvi", { animate: true });
     await mapController.setlcBorder(false);
+    mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 correlation panel becomes relevant here
     mapController.setControlsVisibility({
@@ -536,8 +536,8 @@ const scenes = [
       await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
-    mapController.setLayer("ndvi", { animate: true });
     await mapController.setlcBorder(false);
+    mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -571,7 +571,6 @@ const scenes = [
       currentCity = "tokyo";
     }
     await mapController.setlcBorder(false);
-    mapController.setLayer("lc", { animate: true });
     mapController.setTempUnit("C");
 
     // 🔑 now city toggle row makes sense
@@ -594,6 +593,9 @@ const scenes = [
 
     showWardCompare(false);
     showCityCompare(false);
+    
+    // Set layer AFTER all controls are configured
+    mapController.setLayer("lc", { animate: true });
   },
 
   // 6: What-if greenness simulator – NDVI, painting on

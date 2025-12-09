@@ -2669,6 +2669,7 @@ export async function createMultiCityGridMap(config) {
   let currentBivariateVars = bivariateVars || null;
   let currentTempUnit = "C"; // Track temperature unit preference globally
   let currentLcBorder = false; // Track land cover border state
+  let currentLayerId = null; // Track current layer ID across scenes
 
   const cityButtons = cityToggleControls.selectAll("button")
     .data(cityConfigs, d => d.id)
@@ -2781,7 +2782,7 @@ export async function createMultiCityGridMap(config) {
       subunit: cityConf.subunit,
       layers: cityConf.layers,
       showLayerToggle: cityConf.showLayerToggle ?? true,
-      defaultActiveId: cityConf.defaultActiveId,
+      defaultActiveId: currentLayerId || cityConf.defaultActiveId, // Use current layer if available
       tooltipFormatter: cityConf.tooltipFormatter,
       onReady: cityConf.onReady,
       isInitialRender: true,
@@ -2902,7 +2903,11 @@ export async function createMultiCityGridMap(config) {
      */
     setLayer(id, opts = {}) {
       if (!currentCityController) return;
+      
+      // Always call setLayer on the city controller to ensure animation plays
+      // even if we're "setting" the same layer (e.g., after initial load override)
       currentCityController.setLayer(id, opts);
+      currentLayerId = id; // Track the layer we just set
     },
 
     /**
