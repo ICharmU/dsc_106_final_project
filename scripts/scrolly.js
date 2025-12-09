@@ -566,10 +566,13 @@ const scenes = [
   async () => {
     setSceneText(5);
     mapController.setBivariate(false);
-    mapController.setCity("tokyo");
+    if (currentCity !== "tokyo") {
+      await mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
+    await mapController.setlcBorder(false);
     mapController.setLayer("lc", { animate: true });
     mapController.setTempUnit("C");
-    await mapController.setlcBorder(false);
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -601,8 +604,8 @@ const scenes = [
       await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
-    mapController.setLayer("ndvi", { animate: true });
     await mapController.setlcBorder(false);
+    mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 enable NDVI brush + sim summary
     mapController.setControlsVisibility({
@@ -636,9 +639,9 @@ const scenes = [
       currentCity = "tokyo";
     }
 
+    await mapController.setlcBorder(false);
     // Immediately set the layer after turning off bivariate
     mapController.setLayer("lst_day", { animate: true });
-    await mapController.setlcBorder(false);
 
     mapController.setControlsVisibility({
       showCityToggle: true,
