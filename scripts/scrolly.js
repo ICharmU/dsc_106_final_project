@@ -692,6 +692,9 @@ function initScroller() {
   // Initialize the map
   await initMainMap();
   
+  // Expose mapController globally for other panels (UHI, intercity) to access temperature methods
+  window.mapController = mapController;
+  
   // Set initial temperature unit (will persist across scenes unless user changes it)
   mapController.setTempUnit("C");
   

@@ -1273,6 +1273,8 @@ async function createCityGridMap(config) {
     updateSimSummary();   // refresh summary units
     // Notify parent controller to update global preference
     if (onTempUnitChange) onTempUnitChange("C");
+    // Dispatch event for other panels to listen
+    document.dispatchEvent(new CustomEvent("tempUnitChanged", { detail: { unit: "C" } }));
   });
 
   fBtn.on("click", () => {
@@ -1283,6 +1285,8 @@ async function createCityGridMap(config) {
     updateSimSummary();
     // Notify parent controller to update global preference
     if (onTempUnitChange) onTempUnitChange("F");
+    // Dispatch event for other panels to listen
+    document.dispatchEvent(new CustomEvent("tempUnitChanged", { detail: { unit: "F" } }));
   });
 
   updateUnitButtons();
@@ -2671,6 +2675,28 @@ export async function createMultiCityGridMap(config) {
       currentTempUnit = unit; // Save preference globally
       if (!currentCityController) return;
       currentCityController.setTempUnit(unit);
+    },
+
+    /**
+     * Get current temperature unit preference.
+     */
+    getTempUnit() {
+      return currentTempUnit;
+    },
+
+    /**
+     * Convert Celsius to display temperature based on current unit.
+     */
+    toDisplayTemp(cVal) {
+      if (cVal == null || !Number.isFinite(cVal)) return null;
+      return currentTempUnit === "C" ? cVal : (cVal * 9 / 5 + 32);
+    },
+
+    /**
+     * Get temperature suffix for current unit.
+     */
+    tempSuffix() {
+      return currentTempUnit === "C" ? "°C" : "°F";
     },
 
     /**
