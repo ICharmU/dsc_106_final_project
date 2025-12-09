@@ -359,7 +359,7 @@ async function createCityGridMap(config) {
     isInitialRender = false,  // flag for city switch transitions
 
     enableNdviPainting = false,
-    enablelc = false
+    enablelc = false,
     initialTempUnit = "C",  // Initial temperature unit preference
     onTempUnitChange = null  // Callback when user changes temp unit
   } = config;
@@ -2751,7 +2751,7 @@ export async function createMultiCityGridMap(config) {
       bivariate: bivariateMode,
       bivariateVars: currentBivariateVars,
       enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true),
-      enablelc: enablelc
+      enablelc: enablelc,
       initialTempUnit: currentTempUnit,  // Pass the global temperature preference
       onTempUnitChange: (unit) => {
         // Update global preference when user clicks temp unit button
