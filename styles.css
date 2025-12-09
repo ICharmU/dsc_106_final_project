@@ -27,6 +27,10 @@ header {
     color: black;
 }
 
+
+h1 {
+    text-align: center;
+}
 h1, h2 {
   font-weight: 600;
 }
@@ -112,6 +116,7 @@ section {
 #mainMap {
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Scroll triggers: tall, invisible blocks to drive scenes */
@@ -145,8 +150,8 @@ section {
 
 #overlayText {
   position: absolute;
-  left: 5%;
-  bottom: 10%;
+  right: 5%;
+  bottom: 15%;
   max-width: 420px;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;

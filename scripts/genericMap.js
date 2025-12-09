@@ -1202,7 +1202,7 @@ async function createCityGridMap(config) {
     simSummaryBox = container.append("div")
       .attr("class", "ndvi-sim-summary")
       .style("position", "absolute")
-      .style("bottom", "10px")
+      .style("bottom", "20px")
       .style("right", "16px")
       .style("background", "rgba(0,0,0,0.75)")
       .style("color", "#fff")
@@ -1221,7 +1221,7 @@ async function createCityGridMap(config) {
     const brushControls = container.append("div")
       .attr("class", "ndvi-brush-controls")
       .style("position", "absolute")
-      .style("bottom", "10px")
+      .style("bottom", "20px")
       .style("left", "16px")
       .style("background", "rgba(0,0,0,0.75)")
       .style("color", "#fff")
@@ -1330,10 +1330,11 @@ async function createCityGridMap(config) {
     .attr("class", "legend-container")
     .style("position", "absolute")
     .style("left", `${legendLeft}px`)
-    .style("top", "50%")
+    .style("top", bivariate ? "25%" : "50%")
     .style("transform", legendTransform)
     .style("padding", bivariate ? "0px" : "8px")
-    .style("background", bivariate ? "transparent" : "white")
+    .style("background", bivariate ? "transparent" : "rgba(0,0,0,0.75)")
+    .style("color", "#fff")
     .style("border-radius", bivariate ? "0px" : "4px")
     .style("max-height", "300px")
     .style("overflow-y", "auto");
@@ -1861,7 +1862,7 @@ async function createCityGridMap(config) {
         .attr("width", expandedSvgSize)
         .attr("height", expandedSvgSize);
       
-      // Add white background square rotated -45 degrees with rounded corners
+      // Add black-opaque background square rotated -45 degrees with rounded corners
       legendSvg.append("rect")
         .attr("x", expandedCenterOffset - backgroundSize / 2)
         .attr("y", expandedCenterOffset - backgroundSize / 2)
@@ -1869,7 +1870,7 @@ async function createCityGridMap(config) {
         .attr("height", backgroundSize)
         .attr("rx", 12)
         .attr("ry", 12)
-        .attr("fill", "white")
+        .attr("fill", "rgba(0,0,0,0.75)")
         .attr("transform", `rotate(-45, ${expandedCenterOffset}, ${expandedCenterOffset})`);
       
       // Create a group for the rotated legend
@@ -1959,7 +1960,7 @@ async function createCityGridMap(config) {
         .attr("y", bottomTipY - diagonal * 0.1 + offsetDistance)
         .attr("text-anchor", "start")
         .attr("font-size", 9)
-        .attr("fill", "#666")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(-45, ${bottomTipX + diagonal * 0.1}, ${bottomTipY - diagonal * 0.1 + offsetDistance})`)
         .text("Low");
       
@@ -1969,7 +1970,7 @@ async function createCityGridMap(config) {
         .attr("y", rightTipY + diagonal * 0.1 + offsetDistance)
         .attr("text-anchor", "start")
         .attr("font-size", 9)
-        .attr("fill", "#666")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(-45, ${rightTipX - diagonal * 0.1}, ${rightTipY + diagonal * 0.1 + offsetDistance})`)
         .text("High");
       
@@ -1987,7 +1988,7 @@ async function createCityGridMap(config) {
         .attr("y", axis2Y)
         .attr("text-anchor", "middle")
         .attr("font-size", 10)
-        .attr("fill", "#333")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(-45, ${axis2X}, ${axis2Y})`)
         .text(layer2.label.split(" (")[0]);
       
@@ -2001,7 +2002,7 @@ async function createCityGridMap(config) {
         .attr("y", bottomTipY - diagonal * 0.1 + offsetDistance)
         .attr("text-anchor", "end")
         .attr("font-size", 9)
-        .attr("fill", "#666")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(45, ${bottomTipX - diagonal * 0.1}, ${bottomTipY - diagonal * 0.1 + offsetDistance})`)
         .text("Low");
       
@@ -2011,7 +2012,7 @@ async function createCityGridMap(config) {
         .attr("y", leftTipY + diagonal * 0.1 + offsetDistance)
         .attr("text-anchor", "end")
         .attr("font-size", 9)
-        .attr("fill", "#666")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(45, ${leftTipX + diagonal * 0.1}, ${leftTipY + diagonal * 0.1 + offsetDistance})`)
         .text("High");
       
@@ -2028,7 +2029,7 @@ async function createCityGridMap(config) {
         .attr("y", axis1Y)
         .attr("text-anchor", "middle")
         .attr("font-size", 10)
-        .attr("fill", "#333")
+        .attr("fill", "#fff")
         .attr("transform", `rotate(45, ${axis1X}, ${axis1Y})`)
         .text(layer1.label.split(" (")[0]);
       
@@ -2134,7 +2135,7 @@ async function createCityGridMap(config) {
         .style("font-size", "11px")
         .style("font-weight", "bold")
         .style("margin-bottom", "6px")
-        .style("color", "#333")
+        .style("color", "#fff")
         .text(isLandCover ? activeLayer.label + " (grouped)" : activeLayer.label);
 
       const categoriesContainer = legendContainer.append("div")
@@ -2157,7 +2158,7 @@ async function createCityGridMap(config) {
 
         item.append("div")
           .style("font-size", "10px")
-          .style("color", "#333")
+          .style("color", "#fff")
           .text(cat.label);
       });
     } else {
@@ -2179,7 +2180,7 @@ async function createCityGridMap(config) {
         .style("font-size", "11px")
         .style("font-weight", "bold")
         .style("margin-bottom", "4px")
-        .style("color", "#333")
+        .style("color", "#fff")
         .style("text-align", "center")
         .text(legendTitleText);
 
@@ -2228,7 +2229,7 @@ async function createCityGridMap(config) {
         .attr("y", legendHeight)
         .attr("dy", "-0.5em")
         .attr("font-size", 10)
-        .attr("fill", "#333")
+        .attr("fill", "#fff")
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "middle")
         .text(
@@ -2241,7 +2242,7 @@ async function createCityGridMap(config) {
         .attr("y", 0)
         .attr("dy", "0.5em")
         .attr("font-size", 10)
-        .attr("fill", "#333")
+        .attr("fill", "#fff")
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "middle")
         .text(
@@ -2666,6 +2667,7 @@ export async function createMultiCityGridMap(config) {
   let currentSceneNumber = 0;
   let previousSceneNumber = -1;
   let bivariateMode = !!bivariate;
+  let previousBivariateMode = bivariateMode; // Track previous bivariate state
   let currentBivariateVars = bivariateVars || null;
   let currentTempUnit = "C"; // Track temperature unit preference globally
   let currentLcBorder = false; // Track land cover border state
@@ -2691,8 +2693,10 @@ export async function createMultiCityGridMap(config) {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
 
-    // Check if the city is actually changing
+    // Check if the city is actually changing OR if bivariate mode is changing
     const isCityChanging = previousCityId !== currentCityId;
+    const isBivariateChanging = previousBivariateMode !== bivariateMode;
+    const shouldAnimate = isCityChanging || isBivariateChanging;
 
     // Determine animation direction based on scene number
     const isScrollingUp = previousSceneNumber > currentSceneNumber;
@@ -2705,8 +2709,8 @@ export async function createMultiCityGridMap(config) {
     let brickOverlay = null;
     let bricks = [];
     
-    // Only create brick animation if city is changing
-    if (isCityChanging) {
+    // Only create brick animation if city is changing or bivariate mode is changing
+    if (shouldAnimate) {
       // Get the body background color
       const bodyBgColor = window.getComputedStyle(document.body).backgroundColor;
       
@@ -2924,6 +2928,7 @@ export async function createMultiCityGridMap(config) {
       // Only re-render if the mode actually changed
       if (modeChanged) {
         await renderCurrentCity();
+        previousBivariateMode = bivariateMode; // Update after animation completes
       }
     },
 
