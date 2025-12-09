@@ -34,7 +34,7 @@ const SCENE_TEXT = [
   },
   {
     title: "Land cover can also influence heat",
-    body: "Here you can see..."
+    body: "We'll now map land cover. Comparing land cover to daytime and nighttime temperature, areas that are associated with high greenery (forests and grasslands), show consistently low temperatures throughout the day"
   },
   {
     title: "A ‘what-if’ greenness simulator.",
