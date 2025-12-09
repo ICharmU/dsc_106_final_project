@@ -80,8 +80,9 @@ var optionsY = selectListy.selectAll("option")
 
 optionsY.property("selected", function(d) {
   return d === "Daytime LST";
-});
+}); 
 
+// .
 const svgHeight = Math.max(140, height - 40);
 let svgRoot = container
   .append("svg")
