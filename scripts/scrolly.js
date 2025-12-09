@@ -638,7 +638,7 @@ const scenes = [
 
     // Immediately set the layer after turning off bivariate
     mapController.setLayer("lst_day", { animate: true });
-    await mapController.setlcBorder(true);
+    await mapController.setlcBorder(false);
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -669,6 +669,7 @@ const scenes = [
       currentCity = "tokyo";
     }
     await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
+    await mapController.setlcBorder(true);
 
     mapController.setControlsVisibility({
       showCityToggle: true,
