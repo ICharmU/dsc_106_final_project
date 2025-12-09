@@ -38,7 +38,7 @@ const SCENE_TEXT = [
   },
   {
     title: "A ‘what-if’ greenness simulator.",
-    body: "How can introducing more green spaces benefit metropolitan areas? Our simulation allows us to do this analysis. With our vegetation tab active, you can “paint” and add more vegetation to specific neighborhoods. We can estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
+    body: "How can introducing more green spaces benefit metropolitan areas? Our simulation allows us to do this analysis. With our vegetation tab active, you can “paint” and add more vegetation to specific neighborhoods. We can estimate how much local daytime and nighttime temperatures would change if those pixels really became greener through a feature correlation plot."
   },
   {
     title: "Comparing neighborhoods across cities.",
