@@ -21,6 +21,7 @@ const landCoverTypes = {
 
 // Land cover groupings for legend with custom colors
 const landCoverGroups = {
+  'No Data': { values: [0], color: '#000000ff'},
   'Various Forests': { values: [1, 2, 3, 4, 5], color: '#1c861cff' },      
   'Grasslands': { values: [6, 7, 8, 9, 10], color: '#6ab51aff' },          
   'Wetlands': { values: [11], color: '#46987aff' },                       
@@ -65,6 +66,31 @@ const GLOBAL_LINEAR_MODEL = {
     global_intercept: 0
   }
 };
+
+function blendColors(color1Hex, color2Hex) {
+  let ratio = 0.5;
+  // Convert hex to RGB
+  function hexToRgb(hex) {
+    const r = parseInt(hex.substring(1, 3), 16);
+    const g = parseInt(hex.substring(3, 5), 16);
+    const b = parseInt(hex.substring(5, 7), 16);
+    return [r, g, b];
+  }
+
+  // Convert RGB to hex
+  function rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  const rgb1 = hexToRgb(color1Hex);
+  const rgb2 = hexToRgb(color2Hex);
+
+  const blendedR = Math.round(rgb1[0] * (1 - ratio) + rgb2[0] * ratio);
+  const blendedG = Math.round(rgb1[1] * (1 - ratio) + rgb2[1] * ratio);
+  const blendedB = Math.round(rgb1[2] * (1 - ratio) + rgb2[2] * ratio);
+
+  return rgbToHex(blendedR, blendedG, blendedB);
+}
 
 // Map various city names → model keys
 function modelCityKeyFromName(name) {
@@ -201,7 +227,6 @@ function generateColorShades(baseColor, count) {
 // Build discrete color map for all land cover values
 function buildLandCoverColorMap() {
   const colorMap = {};
-  
   for (const [groupLabel, groupData] of Object.entries(landCoverGroups)) {
     const values = groupData.values;
     const shades = generateColorShades(groupData.color, values.length);
@@ -210,7 +235,6 @@ function buildLandCoverColorMap() {
       colorMap[value] = shades[index];
     });
   }
-  
   return colorMap;
 }
 
@@ -335,6 +359,7 @@ async function createCityGridMap(config) {
     isInitialRender = false,  // flag for city switch transitions
 
     enableNdviPainting = false,
+    enablelc = false
     initialTempUnit = "C",  // Initial temperature unit preference
     onTempUnitChange = null  // Callback when user changes temp unit
   } = config;
@@ -342,6 +367,7 @@ async function createCityGridMap(config) {
   let activeLayer = null;
 
   // Temperature unit for display only ("C" or "F")
+  let lcUnit = enablelc;
   let tempUnit = initialTempUnit;
 
   function toDisplayTemp(cVal) {
@@ -374,6 +400,7 @@ async function createCityGridMap(config) {
   const rasterHeight = meta.height;
   const bbox         = meta.bbox;
   const wardIds      = meta.ward_ids || [];
+  const lcs          = meta.lc;
 
   if (!rasterWidth || !rasterHeight || !bbox) {
     console.error("Grid JSON missing width/height/bbox:", gridPath);
@@ -615,8 +642,9 @@ async function createCityGridMap(config) {
     const lat = minLat + (row + 0.5) * (maxLat - minLat) / rasterHeight;
 
     const wardId = wardIds[idx] || 0;
+    const lc = lcs[idx] || 0;
 
-    pixels[idx] = { idx, row, col, lon, lat, wardId };
+    pixels[idx] = { idx, row, col, lon, lat, wardId, lc };
   }
 
   // ---------- 4. City-specific processing configurations ----------
@@ -857,17 +885,74 @@ async function createCityGridMap(config) {
     .attr("filter", "url(#wardShadowGrid)")
     .style("transition", "opacity 2s ease-in-out");
 
+  const landCoverColorMap = buildLandCoverColorMap();
+
+  function createLcBorder(x1, x2, y1, y2, lcColor) {
+    borderG.append("line")
+        .attr("x1", x1).attr("y1", y1)
+        .attr("x2", x2).attr("y2", y2)
+        .attr("stroke", lcColor);
+  }
+
   // Generate borders based on the pixels' assigned wardIds
   // For flipped cities, pixels have already been assigned flipped wardIds
   // So we compare neighbors in the normal grid and draw at normal positions
   for (let row = 0; row < rasterHeight; row++) {
     for (let col = 0; col < rasterWidth; col++) {
       const idx = row * rasterWidth + col;
+    
+      if (lcUnit) {
+        let x1 = 0;
+        let x2 = 0;
+        let y1 = 0;
+        let y2 = 0;
+
+        //right edge
+        x1  = xOffset + (col + 1) * cellWidth;
+        y1 = yOffset + row * cellHeight;
+        y2 = yOffset + (row + 1) * cellHeight;
+        let lcColor = landCoverColorMap[pixels[idx].lc];
+        if (col < rasterWidth - 1) {
+            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx + 1].lc]);
+        }
+        createLcBorder(x1, x1, y1, y2, lcColor);
+
+        //left edge
+        x1  = xOffset + col * cellWidth;
+        y1 = yOffset + row * cellHeight;
+        y2 = yOffset + (row + 1) * cellHeight;
+        lcColor = landCoverColorMap[pixels[idx].lc];
+        if (col > 0) {
+            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx - 1].lc]);
+        }
+        createLcBorder(x1, x1, y1, y2, lcColor);
+
+        //bottom edge
+        y1  = yOffset + (row + 1) * cellHeight;
+        x1 = xOffset + col * cellWidth;
+        x2 = xOffset + (col + 1) * cellWidth;
+        lcColor = landCoverColorMap[pixels[idx].lc];
+        if (row < rasterHeight - 1) {
+            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx + rasterWidth].lc]);
+        }
+        createLcBorder(x1, x2, y1, y1, lcColor);
+        
+        //top edge
+        y1  = yOffset + row * cellHeight;
+        x1 = xOffset + col * cellWidth;
+        x2 = xOffset + (col + 1) * cellWidth;
+        lcColor = landCoverColorMap[pixels[idx].lc];
+        if (row > 0) {
+            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx - rasterWidth].lc]);
+        }
+        createLcBorder(x1, x2, y1, y1, lcColor);
+      }
+
       const wId = pixels[idx].wardId;
       if (!wId) continue;
 
       // right edge - compare with neighbor to the right
-      if (col < rasterWidth - 1) {
+      if (!lcUnit && col < rasterWidth - 1) {
         const wRight = pixels[idx + 1].wardId;
         if (wRight !== wId) {
           const x  = xOffset + (col + 1) * cellWidth;
@@ -880,7 +965,7 @@ async function createCityGridMap(config) {
       }
 
       // bottom edge - compare with neighbor below
-      if (row < rasterHeight - 1) {
+      if (!lcUnit && row < rasterHeight - 1) {
         const wDown = pixels[idx + rasterWidth].wardId;
         if (wDown !== wId) {
           const y  = yOffset + (row + 1) * cellHeight;
@@ -2572,7 +2657,7 @@ export async function createMultiCityGridMap(config) {
       .style("color", d => d.id === currentCityId ? "#fff" : "#333");
   }
 
-  async function renderCurrentCity() {
+  async function renderCurrentCity(enablelc = false) {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
 
@@ -2666,6 +2751,7 @@ export async function createMultiCityGridMap(config) {
       bivariate: bivariateMode,
       bivariateVars: currentBivariateVars,
       enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true),
+      enablelc: enablelc
       initialTempUnit: currentTempUnit,  // Pass the global temperature preference
       onTempUnitChange: (unit) => {
         // Update global preference when user clicks temp unit button
@@ -2791,6 +2877,10 @@ export async function createMultiCityGridMap(config) {
       if (modeChanged) {
         await renderCurrentCity();
       }
+    },
+
+    async setlcBorder() {
+        renderCurrentCity(true);
     },
 
     /**

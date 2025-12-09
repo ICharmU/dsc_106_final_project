@@ -33,6 +33,10 @@ const SCENE_TEXT = [
     body: "London isn’t the only city that sees this trend in greenness and temperature change. Zooming out, you can now switch between Tokyo, London, New York, and San Diego. Keeping all active features, we can perform a similar analysis of London and view the temperature contrast."
   },
   {
+    title: "Land cover can also influence heat",
+    body: "Here you can see..."
+  },
+  {
     title: "A ‘what-if’ greenness simulator.",
     body: "How can introducing more green spaces benefit metropolitan areas? Our simulation allows us to do this analysis. With our vegetation tab active, you can “paint” and add more vegetation to specific neighborhoods. We can estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
   },
@@ -553,9 +557,39 @@ const scenes = [
     showUhiCompare(true);
   },
 
-  // 5: What-if greenness simulator – NDVI, painting on
+  // 5: Land cover
   async () => {
     setSceneText(5);
+    mapController.setBivariate(false);
+    mapController.setCity("tokyo");
+    mapController.setLayer("lc", { animate: true });
+    mapController.setTempUnit("C");
+
+    // 🔑 now city toggle row makes sense
+    mapController.setControlsVisibility({
+      showCityToggle: true,
+      showUnitToggle: true,
+      showCorrPanel: false,
+      showBrushControls: false,
+      showSimSummary: false
+    });
+
+    setLayerControls(
+      [
+        { id: "lc",   label: "Land Cover Type" },
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "lst_night", label: "Nighttime Temp." }
+      ],
+      "lc"
+    );
+
+    showWardCompare(false);
+    showCityCompare(false);
+  },
+
+  // 6: What-if greenness simulator – NDVI, painting on
+  async () => {
+    setSceneText(6);
     mapController.setBivariate(false);
     if (currentCity !== "tokyo") {
       await mapController.setCity("tokyo");
@@ -588,7 +622,7 @@ const scenes = [
 
   // 6: Inter-neighborhood across cities
   async () => {
-    setSceneText(6);
+    setSceneText(7);
     await mapController.setBivariate(false); // Wait for bivariate→univariate switch to complete
     if (currentCity !== "tokyo") {
       await mapController.setCity("tokyo");
@@ -621,7 +655,7 @@ const scenes = [
 
   // 7: Final bivariate view + inter-city chart
   async () => {
-    setSceneText(7);
+    setSceneText(8);
     if (currentCity !== "tokyo") {
       await mapController.setCity("tokyo");
       currentCity = "tokyo";
