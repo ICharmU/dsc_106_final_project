@@ -399,11 +399,11 @@ let currentCity = null; // Track the current city to avoid unnecessary re-render
 
 const scenes = [
   // 0: Hook – London, nighttime heat, no extra controls
-  () => {
+  async () => {
     setSceneText(0);
     mapController.setBivariate(false);
     if (currentCity !== "london") {
-      mapController.setCity("london");
+      await mapController.setCity("london");
       currentCity = "london";
     }
     mapController.setTempUnit("C");
@@ -425,14 +425,13 @@ const scenes = [
   },
 
   // 1: Intra-city inequality – wardCompare visible
-  () => {
+  async () => {
     setSceneText(1);
     mapController.setBivariate(false);
     if (currentCity !== "london") {
-      mapController.setCity("london");
+      await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setLayer("lst_night", { animate: true });
     mapController.setTempUnit("C");
 
     mapController.setControlsVisibility({
@@ -451,17 +450,19 @@ const scenes = [
       "lst_night"
     );
 
+    mapController.setLayer("lst_night", { animate: true });
+
     showWardCompare(true);
     showCityCompare(false);
     showUhiCompare(false); 
   },
 
   // 2: Day vs night heat (still London)
-  () => {
+  async () => {
     setSceneText(2);
     mapController.setBivariate(false);
     if (currentCity !== "london") {
-      mapController.setCity("london");
+      await mapController.setCity("london");
       currentCity = "london";
     }
     mapController.setTempUnit("C");
@@ -490,11 +491,11 @@ const scenes = [
   },
 
   // 3: NDVI + correlation – London
-  () => {
+  async () => {
     setSceneText(3);
     mapController.setBivariate(false);
     if (currentCity !== "london") {
-      mapController.setCity("london");
+      await mapController.setCity("london");
       currentCity = "london";
     }
     mapController.setLayer("ndvi", { animate: true });
@@ -523,11 +524,11 @@ const scenes = [
   },
 
   // 4: Across-city, daytime LST
-  () => {
+  async () => {
     setSceneText(4);
     mapController.setBivariate(false);
     if (currentCity !== "tokyo") {
-      mapController.setCity("tokyo");
+      await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
     mapController.setLayer("ndvi", { animate: true });
@@ -557,11 +558,11 @@ const scenes = [
   },
 
   // 5: What-if greenness simulator – NDVI, painting on
-  () => {
+  async () => {
     setSceneText(5);
     mapController.setBivariate(false);
     if (currentCity !== "tokyo") {
-      mapController.setCity("tokyo");
+      await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
     mapController.setLayer("ndvi", { animate: true });
@@ -571,8 +572,8 @@ const scenes = [
       showCityToggle: true,
       showUnitToggle: true,
       showCorrPanel: true,
-      showBrushControls: true,
-      showSimSummary: true
+      showBrushControls: false,
+      showSimSummary: false
     });
 
     setLayerControls(
@@ -590,13 +591,16 @@ const scenes = [
   },
 
   // 6: Inter-neighborhood across cities
-  () => {
+  async () => {
     setSceneText(6);
-    mapController.setBivariate(false);
+    await mapController.setBivariate(false); // Wait for bivariate→univariate switch to complete
     if (currentCity !== "tokyo") {
-      mapController.setCity("tokyo");
+      await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
+
+    // Immediately set the layer after turning off bivariate
+    mapController.setLayer("lst_day", { animate: true });
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -614,18 +618,16 @@ const scenes = [
       "lst_day"
     );
 
-    mapController.setLayer("lst_day", { animate: true });
-
     showWardCompare(true);
     showCityCompare(false);
     showUhiCompare(true);
   },
 
   // 7: Final bivariate view + inter-city chart
-  () => {
+  async () => {
     setSceneText(7);
     if (currentCity !== "tokyo") {
-      mapController.setCity("tokyo");
+      await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
     mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
@@ -659,7 +661,7 @@ function initScroller() {
       offset: 0.6,
       debug: false
     })
-    .onStepEnter(response => {
+    .onStepEnter(async response => {
       const idx = Number(response.element.dataset.scene);
       const direction = response.direction; // 'up' or 'down'
       
@@ -667,7 +669,7 @@ function initScroller() {
       // When scrolling up, show the scene we're entering (going back to)
       // Both are the same - just trigger the scene for the step we're entering
       const fn = scenes[idx];
-      if (fn && mapController) fn();
+      if (fn && mapController) await fn();
     });
 
   window.addEventListener("resize", () => scroller.resize());
@@ -677,12 +679,43 @@ function initScroller() {
 // Boot
 // ------------------------------------
 (async function main() {
+  // Determine which scene is currently in view based on scroll position BEFORE initializing the map
+  const steps = document.querySelectorAll("#scrollTriggers .step");
+  const viewportHeight = window.innerHeight;
+  const triggerPoint = viewportHeight * 0.6; // Match scrollama offset
+  
+  let activeSceneIndex = 0;
+  
+  // Find which step is currently at or past the trigger point
+  steps.forEach((step, index) => {
+    const rect = step.getBoundingClientRect();
+    if (rect.top <= triggerPoint) {
+      activeSceneIndex = index;
+    }
+  });
+
+  // Initialize the map
   await initMainMap();
   initFloatingPanels();
   initScroller();
-
-  // Initial scene state (top of page)
-  scenes[0] && scenes[0]();
+  
+  // Apply the active scene's state immediately after map initialization
+  // Force animate: false for initial load by temporarily overriding setLayer
+  if (scenes[activeSceneIndex]) {
+    // Store the original setLayer
+    const originalSetLayer = mapController.setLayer;
+    
+    // Temporarily override to force animate: false on initial load
+    mapController.setLayer = function(id, options = {}) {
+      return originalSetLayer.call(this, id, { ...options, animate: false });
+    };
+    
+    // Call the scene
+    scenes[activeSceneIndex]();
+    
+    // Restore the original setLayer
+    mapController.setLayer = originalSetLayer;
+  }
 
   // Global reset: reload to restore brushes, scenes, panel positions, etc.
   const resetBtn = document.getElementById("mapResetButton");
