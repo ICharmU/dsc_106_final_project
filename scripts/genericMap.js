@@ -334,13 +334,15 @@ async function createCityGridMap(config) {
     onReady = null,          // optional callback after draw
     isInitialRender = false,  // flag for city switch transitions
 
-    enableNdviPainting = false
+    enableNdviPainting = false,
+    initialTempUnit = "C",  // Initial temperature unit preference
+    onTempUnitChange = null  // Callback when user changes temp unit
   } = config;
 
   let activeLayer = null;
 
   // Temperature unit for display only ("C" or "F")
-  let tempUnit = "C";
+  let tempUnit = initialTempUnit;
 
   function toDisplayTemp(cVal) {
     if (cVal == null || !Number.isFinite(cVal)) return null;
@@ -1269,6 +1271,8 @@ async function createCityGridMap(config) {
     updateUnitButtons();
     updateLayer(false);   // refresh legend labels
     updateSimSummary();   // refresh summary units
+    // Notify parent controller to update global preference
+    if (onTempUnitChange) onTempUnitChange("C");
   });
 
   fBtn.on("click", () => {
@@ -1277,6 +1281,8 @@ async function createCityGridMap(config) {
     updateUnitButtons();
     updateLayer(false);
     updateSimSummary();
+    // Notify parent controller to update global preference
+    if (onTempUnitChange) onTempUnitChange("F");
   });
 
   updateUnitButtons();
@@ -2042,13 +2048,22 @@ async function createCityGridMap(config) {
       const legendHeight = 210;
       const textWidth = 50;
 
+      // Dynamic legend title that updates with temperature unit
+      const isTempLayer = activeLayer.id === "lst_day" || activeLayer.id === "lst_night";
+      let legendTitleText = activeLayer.label;
+      
+      if (isTempLayer) {
+        // Replace the temperature unit in the label with the current unit
+        legendTitleText = activeLayer.label.replace(/\(°C\)|\(°F\)/g, `(${tempSuffix()})`);
+      }
+
       const legendTitle = legendContainer.append("div")
         .style("font-size", "11px")
         .style("font-weight", "bold")
         .style("margin-bottom", "4px")
         .style("color", "#333")
         .style("text-align", "center")
-        .text(activeLayer.label);
+        .text(legendTitleText);
 
       const legendSvg = legendContainer.append("svg")
         .attr("width", textWidth + legendWidth + 5)
@@ -2530,6 +2545,7 @@ export async function createMultiCityGridMap(config) {
   let currentCityController = null;
   let bivariateMode = !!bivariate;
   let currentBivariateVars = bivariateVars || null;
+  let currentTempUnit = "C"; // Track temperature unit preference globally
 
   const cityButtons = cityToggleControls.selectAll("button")
     .data(cityConfigs, d => d.id)
@@ -2584,10 +2600,19 @@ export async function createMultiCityGridMap(config) {
       isInitialRender: true,
       bivariate: bivariateMode,
       bivariateVars: currentBivariateVars,
-      enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true)
+      enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true),
+      initialTempUnit: currentTempUnit,  // Pass the global temperature preference
+      onTempUnitChange: (unit) => {
+        // Update global preference when user clicks temp unit button
+        currentTempUnit = unit;
+      }
     });
 
     updateCityButtonStyles();
+    
+    // Temperature unit is already set via initialTempUnit parameter
+    // No need to call setTempUnit again
+    
     return currentCityController;
   }
 
@@ -2643,6 +2668,7 @@ export async function createMultiCityGridMap(config) {
      * Set temp unit (delegates to city controller).
      */
     setTempUnit(unit) {
+      currentTempUnit = unit; // Save preference globally
       if (!currentCityController) return;
       currentCityController.setTempUnit(unit);
     },

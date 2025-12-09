@@ -406,7 +406,6 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setTempUnit("C");
     mapController.setLayer("lst_night", { animate: false });
 
     // 🔑 Only temp-unit pill, nothing else yet
@@ -432,7 +431,6 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setTempUnit("C");
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -465,7 +463,6 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
-    mapController.setTempUnit("C");
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -532,7 +529,6 @@ const scenes = [
       currentCity = "tokyo";
     }
     mapController.setLayer("ndvi", { animate: true });
-    mapController.setTempUnit("C");
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -630,8 +626,7 @@ const scenes = [
       await mapController.setCity("tokyo");
       currentCity = "tokyo";
     }
-    mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
-    mapController.setTempUnit("C");
+    await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -696,6 +691,10 @@ function initScroller() {
 
   // Initialize the map
   await initMainMap();
+  
+  // Set initial temperature unit (will persist across scenes unless user changes it)
+  mapController.setTempUnit("C");
+  
   initFloatingPanels();
   initScroller();
   
@@ -710,8 +709,8 @@ function initScroller() {
       return originalSetLayer.call(this, id, { ...options, animate: false });
     };
     
-    // Call the scene
-    scenes[activeSceneIndex]();
+    // Call the scene and wait for it to complete (especially important for async operations like setBivariate)
+    await scenes[activeSceneIndex]();
     
     // Restore the original setLayer
     mapController.setLayer = originalSetLayer;
