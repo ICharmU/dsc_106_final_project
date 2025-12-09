@@ -620,7 +620,7 @@ const scenes = [
     showUhiCompare(true);
   },
 
-  // 6: Inter-neighborhood across cities
+  // 7: Inter-neighborhood across cities
   async () => {
     setSceneText(7);
     await mapController.setBivariate(false); // Wait for bivariate→univariate switch to complete
@@ -653,7 +653,7 @@ const scenes = [
     showUhiCompare(true);
   },
 
-  // 7: Final bivariate view + inter-city chart
+  // 8: Final bivariate view + inter-city chart
   async () => {
     setSceneText(8);
     if (currentCity !== "tokyo") {
@@ -661,6 +661,7 @@ const scenes = [
       currentCity = "tokyo";
     }
     await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
+    await mapController.setlcBorder();
 
     mapController.setControlsVisibility({
       showCityToggle: true,
