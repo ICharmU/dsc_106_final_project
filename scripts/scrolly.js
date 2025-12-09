@@ -548,7 +548,7 @@ const scenes = [
 
     mapController.setLayer("lst_night", { animate: true });
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(false);
     showUhiCompare(false); 
   },
@@ -581,7 +581,7 @@ const scenes = [
 
     mapController.setLayer("lst_day", { animate: true });
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(false);
     showUhiCompare(true); 
   },
@@ -615,7 +615,7 @@ const scenes = [
       "ndvi"
     );
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(false);
     showUhiCompare(true);
   },
@@ -649,7 +649,7 @@ const scenes = [
       "ndvi"
     );
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(false);
     showUhiCompare(true);
   },
@@ -719,7 +719,7 @@ const scenes = [
       "ndvi"
     );
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(false);
     showUhiCompare(true);
   },
@@ -753,7 +753,7 @@ const scenes = [
       "lst_day"
     );
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(true);
     showUhiCompare(true);
   },
@@ -777,7 +777,7 @@ const scenes = [
 
     setLayerControls([], null);
 
-    showWardCompare(true);
+    showWardCompare(false);
     showCityCompare(true);
     showUhiCompare(true);
   }

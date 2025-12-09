@@ -123,7 +123,8 @@ const tooltip = d3.select("body")
     .style("padding", "4px 8px")
     .style("border-radius", "4px")
     .style("font-size", "12px")
-    .style("opacity", 0);
+    .style("z-index", "9999")
+    .style("opacity", 1);
 
 document.addEventListener("wardStatsUpdated", (evt) => {
   const detail = evt.detail || {};
