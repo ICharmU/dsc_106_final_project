@@ -6,14 +6,11 @@
   <title>Why Some Neighborhoods Sleep Hotter</title>
 
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="london_style.css">
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
 
-  <!-- Scripts -->
-  <!-- <script type="module" src="scripts/london/heat_inequality.js" defer></script>  -->
-  <!-- <script type="module" src="scripts/london/londonMap.js"></script> -->
+  <!-- Core scripts -->
   <script type="module" src="scripts/genericMap.js" defer></script>
   <script type="module" src="scripts/compare.js" defer></script>
   <script type="module" src="scripts/intercity.js" defer></script>
@@ -21,8 +18,8 @@
 
   <!-- Scrollama for scrollytelling -->
   <script src="https://unpkg.com/scrollama"></script>
-  
-  <!-- Your scrolly driver -->
+
+  <!-- Scrolly driver -->
   <script type="module" src="scripts/scrolly.js" defer></script>
 </head>
 <body>
@@ -39,94 +36,105 @@
     <p>Through an analysis of multiple metropolitan cities, our group seeks to analyze how the factors of greenness, land cover, and daytime surface temperature impact nighttime surface temperature. We seek to answer the question:</p>
   
     <div class="text-box">
-    What factors contribute most to this phenomenon, and what can urban cities do to reverse this?
+      What factors contribute most to this phenomenon, and what can urban cities do to reverse this?
     </div>
   <header>
     
   <!-- Scrollytelling container -->
-<section id="scrolly">
-  <div class="left-static-text">
+  <section id="scrolly">
+    <div class="left-static-text">
       <h3>Features of Measurement</h3>
       <p><b>Dayttime and Nighttime Land Surface Temperature:</b> a 15 year average across Jan 2010-August 2025</p>
       <p><b>NDVI (greenness):</b> amount of green vegetation, value range of -1 (barren areas) to 1 (high vegetation) </p>
       <p><b>Land cover:</b> physical material of Earth surface (eg. human-made vs natural material) </p>
     </div>
 
-  <!-- Sticky fullscreen-ish map wrapper -->
-  <div id="mapWrapper">
-    
-    <div id="mainMap" class="viz"></div>
-
-    <!-- Text overlay that updates on scroll -->
-    <div class="text-box">
-      <div id="overlayText">
-        <h2 id="sceneTitle"></h2>
-        <p id="sceneBody"></p>
-      </div>
-    </div>
-
-    <div id="mapResetButton">Reset story</div>
-    <div id="layerControls"></div>
-
-    
-    
-
-    <!-- Comparison panels -->
-    <div id="wardCompare" class="comparison-panel">
-      <div class="panel-header" data-panel-id="wardCompare">
-        <span class="panel-title">Within-city comparison</span>
-        <div class="panel-controls">
-          <button class="panel-btn panel-reset">⟳</button>
-          <button class="panel-btn panel-hide">–</button>
+    <div id="scrollyLayout"> 
+      <!-- LEFT RAIL --> 
+      <div id="leftRail"> 
+        <div id="wardCompare" class="comparison-panel"> 
+          <div class="panel-header" data-panel-id="wardCompare"> 
+            <span class="panel-title">Within-city comparison</span> 
+            <div class="panel-controls"> 
+              <button class="panel-btn panel-expand" title="Expand / focus">⤢</button> 
+              <button class="panel-btn panel-hide" title="Collapse">–</button> 
+            </div> 
+          </div> 
+          <div class="panel-body"></div> 
+        </div>
+      
+        <div id="uhiCompare" class="comparison-panel"> 
+          <div class="panel-header" data-panel-id="uhiCompare"> 
+            <span class="panel-title">Urban Heat Island comparison</span> 
+            <div class="panel-controls"> 
+              <button class="panel-btn panel-expand" title="Expand / focus">⤢</button> 
+              <button class="panel-btn panel-hide" title="Collapse">–</button> 
+            </div> 
+          </div> 
+          <div class="panel-body"></div> 
         </div>
       </div>
-      <div class="panel-body"></div>
-    </div>
 
-    <div id="cityCompare" class="comparison-panel">
-      <div class="panel-header" data-panel-id="cityCompare">
-        <span class="panel-title">Across-city comparison</span>
-        <div class="panel-controls">
-          <button class="panel-btn panel-reset">⟳</button>
-          <button class="panel-btn panel-hide">–</button>
+      <!-- CENTER COLUMN: sticky map + scroll triggers -->
+      <div id="centerCol">
+        <!-- Sticky map wrapper -->
+        <div
+          id="mapWrapper"
+          style="
+            position: sticky;
+            top: 12vh;
+            height: 76vh;
+            width: 100%;
+          "
+        >
+          <div id="mainMap" class="viz"></div>
+
+          <!-- Scene text overlay -->
+          <div id="overlayText">
+            <h2 id="sceneTitle"></h2>
+            <p id="sceneBody"></p>
+          </div>
+
+          <div id="mapResetButton">Reset story</div>
+
+          <!-- Custom layer controls -->
+          <div id="layerControls"></div>
+        </div>
+
+        <!-- Invisible scroll triggers (drive the scenes) -->
+        <div id="scrollTriggers">
+          <div class="step" data-scene="0"></div>
+          <div class="step" data-scene="1"></div>
+          <div class="step" data-scene="2"></div>
+          <div class="step" data-scene="3"></div>
+          <div class="step" data-scene="4"></div>
+          <div class="step" data-scene="5"></div>
+          <div class="step" data-scene="6"></div>
+          <div class="step" data-scene="7"></div>
         </div>
       </div>
-      <div class="panel-body"></div>
-    </div>
 
-    <div id="uhiCompare" class="comparison-panel">
-      <div class="panel-header" data-panel-id="uhiCompare">
-        <span class="panel-title">Urban Heat Island comparison</span>
-        <div class="panel-controls">
-          <button class="panel-btn panel-reset">⟳</button>
-          <button class="panel-btn panel-hide">–</button>
+      <!-- RIGHT RAIL -->
+      <div id="rightRail">
+        <div id="cityCompare" class="comparison-panel">
+          <div class="panel-header" data-panel-id="cityCompare">
+            <span class="panel-title">Across-city comparison</span>
+            <div class="panel-controls">
+              <button class="panel-btn panel-expand" title="Expand / focus">⤢</button>
+              <button class="panel-btn panel-hide" title="Collapse">–</button>
+            </div>
+          </div>
+          <div class="panel-body"></div>
         </div>
       </div>
-      <div class="panel-body"></div>
     </div>
+  </section>
 
-  </div> <!-- /#mapWrapper -->
-
-  <!-- Invisible scroll triggers -->
-  <div id="scrollTriggers">
-    <div class="step" data-scene="0"></div>
-    <div class="step" data-scene="1"></div>
-    <div class="step" data-scene="2"></div>
-    <div class="step" data-scene="3"></div>
-    <div class="step" data-scene="4"></div>
-    <div class="step" data-scene="5"></div>
-    <div class="step" data-scene="6"></div>
-    <div class="step" data-scene="7"></div>
-    <div class="step" data-scene="8"></div>
-  </div>
-
-</section>
-
-<!-- Conclusion section -->
-<section id="conclusion">
-  <div class="text-content">
-    <h2>What can we conclude?</h2>
-    <p>
+  <!-- CONCLUSION SECTION -->
+  <section id="conclusion">
+    <div class="text-content">
+      <h2>What can we conclude?</h2>
+      <p>
       As shown from cross comparing daytime surface temperature, vegetation, and land cover, all features play a role in determining night time temperature. </p>
 
     <p>
@@ -139,16 +147,16 @@
     </p>
 
     <p>
-      With increased vegetation in our simulation leading to cooler nighttime temperatures across cities, it becomes more clear that a correlation exists between the three variables in 
-      decreasing night time LST. Cities could positively benefit from our conclusions. By having green initiatives and infrastructure that promotes adding more green spaces within high-temperature neighborhoods, 
-      this can lead to neighborhoods experiencing cooler nights and more comfortable sleep.
-    </p>
+        With increased vegetation in our simulation leading to cooler nighttime temperatures across cities,
+        it becomes more clear that a correlation exists between the three variables in 
+      decreasing night time LST. Cities could positively benefit from our conclusions. By having green initiatives and infrastructure that
+        promotes adding more green spaces within high-temperature neighborhoods, 
+      this can lead to neighborhoods
+        experiencing cooler nights and more comfortable sleep.
+      </p>
     
-  </div>
-</section>
-  
-
+    </div>
+  </section>
 
 </body>
-  
 </html>

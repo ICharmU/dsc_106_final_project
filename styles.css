@@ -1,45 +1,20 @@
+/* Base page */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
 body {
-    font-family: Inter, sans-serif;
-    margin: 0;
-    background: #fafafa;
-    color: #222;
+  font-family: Inter, sans-serif;
+  background: #fafafa;
+  color: #222;
 }
 
-section {
-    padding: 60px 12%;
-    border-bottom: 1px solid #eee;
-}
-
-h1,
-h2 {
-    font-weight: 600;
-}
-
-.viz {
-    position: relative;
-    width: 100%;
-    height: 500px;
-    margin-top: 20px;
-    background: #e9e9e9;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
+/* Headline area */
 header {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 40px 16px 0px;
-
-}
-
-.text-box {
-  max-width: 1100px;   /* matches #scrolly */
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 20px;
-  border: 2px solid #ccc;
-  border-radius: 12px;
-  background: #fff;
-  text-align: center;
+  padding: 40px 16px 0;
 }
 
 .left-static-text {
@@ -50,232 +25,347 @@ header {
     width: 250px;         /* optional width */
     padding: 16px;
     color: black;
-
 }
 
+h1, h2 {
+  font-weight: 600;
+}
 
+/* Generic section default (used by conclusion) */
+section {
+  border-bottom: 1px solid #eee;
+}
+
+/* Map placeholder sizing */
+.viz {
+  position: relative;
+  width: 100%;
+  height: 500px;  /* gets overridden by mapWrapper height */
+  margin-top: 20px;
+  background: #e9e9e9;
+  border-radius: 8px;
+}
+
+/* =========================
+   SCROLLY LAYOUT
+   ========================= */
 
 #scrolly {
-    max-width: 1100px;
-    margin: 0 auto;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 40px 16px 120px;
+  position: relative;
 }
 
-#scrollTriggers,
-#scrollTriggers .step {
-    pointer-events: none;
+/* 3-column grid: left rail, center sticky map, right rail */
+#scrollyLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 20%) minmax(0, 60%) minmax(0, 20%);
+  column-gap: 16px;
+  align-items: flex-start;
 }
 
+/* Side rails: stacked cards */
+#leftRail,
+#rightRail {
+  /* position: relative; */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  
+  /* Make side rails sticky alongside the map */
+  position: sticky;
+  top: 12vh;          /* match #mapWrapper’s top */
+  align-self: flex-start;
+  z-index: 15;        /* above the map’s z-index 10, but below tooltips (9999) */
+}
+
+/* Center column just wraps sticky map + triggers */
+#centerCol {
+  position: relative;
+}
+
+/* Ensure ancestors don't break sticky */
+#scrolly,
+#scrollyLayout,
+#centerCol {
+  position: relative;
+  overflow: visible !important;
+}
+
+
+/* Sticky map wrapper */
 #mapWrapper {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    width: 100%;
-    max-width: 1000px;
-    margin: 0 auto;
-    z-index: 0;
+  position: sticky !important;
+  top: 12vh; 
+  height: 76vh;                  /* so top+height = 88vh → vertically centered */
+  width: 100%;
+  margin: 0 auto;
+  transition: height 0.3s ease;
+}
+
+/* When a panel is focused, you can shrink the map */
+#mapWrapper.map-compressed {
+  height: 40vh;
 }
 
 #mainMap {
-    position: relative;
-    width: 100%;
-    height: 100%;
-}
-
-/* Text overlays the map */
-#overlayText {
-    position: absolute;
-    left: 5%;
-    bottom: 10%;
-    max-width: 420px;
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    padding: 12px 16px;
-    border-radius: 8px;
-    pointer-events: auto;
-    transition: opacity 0.3s ease;
-    /* so pan/zoom still work */
-}
-
-#overlayText h2 {
-    margin: 0 0 6px;
-    font-size: 1.4rem;
-}
-
-#overlayText p {
-    margin: 0;
-    font-size: 0.95rem;
-    line-height: 1.4;
-}
-
-/* Custom layer controls (bottom center) */
-#layerControls {
-    position: absolute;
-    left: 50%;
-    bottom: 6%;
-    transform: translateX(-50%);
-    display: none;
-    /* scenes will turn this on */
-    gap: 8px;
-    background: rgba(250, 250, 250, 0.95);
-    padding: 4px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    z-index: 20;
-}
-
-#layerControls button {
-    border: 1px solid #ccc;
-    background: #fff;
-    padding: 4px 8px;
-    border-radius: 999px;
-    cursor: pointer;
-}
-
-#layerControls button.active {
-    background: #333;
-    color: #fff;
+  width: 100%;
+  height: 100%;
 }
 
 /* Scroll triggers: tall, invisible blocks to drive scenes */
 #scrollTriggers {
-    position: relative;
-    margin-top: 100vh;
-    /* so you scroll past map for scene changes */
+  position: relative;
+  margin-top: 40vh;  /* how far you scroll before scene 0 fires */
 }
 
 #scrollTriggers .step {
-    height: 80vh;
+  height: 80vh;
+  pointer-events: none;
+  /* border: 1px solid rgba(255, 0, 0, 0.3);
+  background: rgba(0, 0, 255, 0.02); */
 }
 
-/* Comparison panels appear below the scrolly map */
+/* Scroll triggers should not capture pointer events */
+#scrollTriggers,
+#scrollTriggers .step {
+  pointer-events: none;
+}
+
+#scrolly,
+#scrollyLayout,
+#centerCol {
+  overflow: visible;
+}
+
+/* =========================
+   Map overlay / controls
+   ========================= */
+
+#overlayText {
+  position: absolute;
+  left: 5%;
+  bottom: 10%;
+  max-width: 420px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 8px;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+
+#overlayText h2 {
+  margin: 0 0 6px;
+  font-size: 1.4rem;
+}
+
+#overlayText p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+/* Custom layer controls (bottom center on map) */
+#layerControls {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  display: none;           /* scenes turn this on */
+  gap: 8px;
+  background: rgba(250, 250, 250, 0.95);
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  z-index: 20;
+}
+
+#layerControls button {
+  border: 1px solid #ccc;
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#layerControls button.active {
+  background: #333;
+  color: #fff;
+}
+
+/* Map reset button */
+#mapResetButton {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 30;
+  user-select: none;
+}
+
+#mapResetButton:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* =========================
+   Comparison panels
+   ========================= */
+
+/* Panel cards in the side rails */
 .comparison-panel {
-    max-width: 1000px;
-    margin: 40px auto 0;
+  background: rgba(250, 250, 250, 0.96);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* default invisible; scenes toggle .is-visible */
+  opacity: 0;
+  pointer-events: none;
+
+  flex: 1 1 auto;
+  transform: translateY(12px) scale(1);
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    max-height 0.25s ease,
+    flex 0.25s ease;
 }
 
-/* We’ll toggle these from JS */
-/* #wardCompare,
-#cityCompare {
-    display: none;
-} */
-
-#wardCompare,
-#cityCompare,
-#uhiCompare {
-    position: absolute;
-    right: 16px;
-    bottom: 16px;
-    width: 360px;
-    height: 260px;
-    background: rgba(250, 250, 250, 0.96);
-    border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    padding: 6px 8px;
-    overflow: hidden;
-    z-index: 15;
+/* When a scene turns a panel on */
+.comparison-panel.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
-/* Floating comparison panels (start hidden, scrolly.js toggles display) */
-.comparison-panel {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    width: 420px;
-    height: 280px;
-    background: rgba(250, 250, 250, 0.96);
-    border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    display: flex;
-    flex-direction: column;
-    /* scenes show/hide */
-    resize: both;
-    /* user can resize */
-    overflow: hidden;
-    /* keep internals clipped */
-    z-index: 15;
-}
-
-/* Shared header for dragging + hide button */
+/* Header row */
 .comparison-panel .panel-header {
-    height: 30px;
-    padding: 4px 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    font-weight: 600;
-    background: rgba(240, 240, 240, 0.96);
-    border-bottom: 1px solid #ddd;
-    cursor: move;
-    /* draggable handle */
+  height: 30px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(240, 240, 240, 0.96);
+  border-bottom: 1px solid #ddd;
+  cursor: default; /* no dragging in this version */
 }
 
 .comparison-panel .panel-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .comparison-panel .panel-controls {
-    display: flex;
-    gap: 4px;
+  display: flex;
+  gap: 4px;
 }
 
 .panel-btn {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 0 4px;
-    font-size: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 12px;
 }
 
 /* Body where D3 renders charts */
 .comparison-panel .panel-body {
-    position: relative;
-    padding: 6px 8px;
-    height: calc(100% - 30px);
-    flex: 1 1 auto;
-    overflow: hidden;
-    /* change to auto if you prefer scrollbars */
+  position: relative;
+  padding: 6px 8px;
+  height: auto;
+  max-height: 260px;
+  flex: 1 1 auto;
+  overflow: hidden;  /* change to auto if you want inner scrollbars */
 }
 
-/* Collapsed state (when user clicks hide button) */
+/* Collapsed state */
 .comparison-panel.collapsed .panel-body {
-    display: none;
+  display: none;
 }
 
 .comparison-panel.collapsed {
-    height: auto;
+  max-height: 40px;
 }
 
-#mapResetButton {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    padding: 4px 8px;
-    font-size: 11px;
-    background: rgba(0, 0, 0, 0.75);
-    color: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    z-index: 30;
-    user-select: none;
+/* FOCUSED = expanded panel (from initPanels) */
+.comparison-panel.focused {
+  flex: 2 1 auto;
+  max-height: 80vh;
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
-#mapResetButton:hover {
-    background: rgba(0, 0, 0, 0.9);
+/* SHRUNK = when another panel is focused */
+.comparison-panel.shrunk {
+  flex: 0.7 1 auto;
+  transform: translateY(4px) scale(0.94);
+  opacity: 0.75;
 }
+
+/* Layout tweaks when left or right rail is focused */
+#scrollyLayout.focus-left {
+  grid-template-columns: minmax(0, 32%) minmax(0, 48%) minmax(0, 20%);
+}
+
+#scrollyLayout.focus-right {
+  grid-template-columns: minmax(0, 20%) minmax(0, 48%) minmax(0, 32%);
+}
+
+/* =========================
+   Conclusion section
+   ========================= */
 
 #conclusion {
-max-width: 1100px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 60px 16px;
-  position: relative; /* make sure it's in normal flow */
-  z-index: 1; /* optional */
- 
+  border-bottom: none;
 }
 
 #conclusion .text-content {
   line-height: 1.6;
   font-size: 18px;
+}
+
+/* =========================
+   Responsive
+   ========================= */
+
+@media (max-width: 960px) {
+  #scrollyLayout {
+    grid-template-columns: 1fr;
+    row-gap: 24px;
+  }
+
+  #mapWrapper {
+    position: sticky;  /* disable sticky on small screens */
+    height: 70vh;
+  }
+
+  #leftRail,
+  #rightRail {
+    flex-direction: column;
+  }
+
+  #rightRail {
+    margin-top: 8px;
+  }
+
+  #overlayText {
+    max-width: 80%;
+  }
 }

@@ -87,14 +87,18 @@ function setLayerControls(layers, activeId) {
 // Comparison panel visibility
 // ------------------------------------
 function showWardCompare(show) {
-  d3.select("#wardCompare").style("display", show ? "block" : "none");
+  const panel = d3.select("#wardCompare");
+  panel.classed("is-visible", !!show);
 }
 
 function showCityCompare(show) {
-  d3.select("#cityCompare").style("display", show ? "block" : "none");
+  const panel = d3.select("#cityCompare");
+  panel.classed("is-visible", !!show);
 }
+
 function showUhiCompare(show) {
-  d3.select("#uhiCompare").style("display", show ? "block" : "none");
+  const panel = d3.select("#uhiCompare");
+  panel.classed("is-visible", !!show);
 }
 
 // ------------------------------------
@@ -103,8 +107,20 @@ function showUhiCompare(show) {
 function setSceneText(index) {
   const t = SCENE_TEXT[index];
   if (!t) return;
-  d3.select("#sceneTitle").text(t.title);
-  d3.select("#sceneBody").text(t.body);
+
+  const overlay = d3.select("#overlayText");
+
+  overlay.transition()
+    .duration(120)
+    .style("opacity", 0)
+    .on("end", () => {
+      d3.select("#sceneTitle").text(t.title);
+      d3.select("#sceneBody").text(t.body);
+
+      overlay.transition()
+        .duration(180)
+        .style("opacity", 1);
+    });
 }
 
 // ------------------------------------
@@ -166,21 +182,97 @@ function initFloatingPanels() {
         panel.classList.toggle("collapsed");
       });
     }
+    
 
     // Reset panel button: back to default size/position
     const resetBtn = panel.querySelector(".panel-reset");
     if (resetBtn) {
       resetBtn.addEventListener("click", () => {
         panel.classList.remove("collapsed");
-        // Remove any inline drag/resize overrides
+
+        // Clear inline overrides so CSS (including masonry/media queries)
+        // can re-apply the default position + size.
         panel.style.left = "";
         panel.style.top = "";
-        panel.style.right = "16px";
-        panel.style.bottom = "16px";
-        panel.style.width = "420px";
-        panel.style.height = "280px";
+        panel.style.right = "";
+        panel.style.bottom = "";
+        panel.style.width = "";
+        panel.style.height = "";
+      });
+    }
+  });
+}
 
-        // Let the ResizeObserver reflow the chart
+// ------------------------------------
+// Panel behavior: expand / collapse only
+// ------------------------------------
+function initPanels() {
+  const panels = Array.from(document.querySelectorAll(".comparison-panel"));
+  const mapWrapper = document.getElementById("mapWrapper");
+  const layout = document.getElementById("scrollyLayout");
+
+  if (!panels.length) return;
+
+  function applyFocusState(focusedPanel) {
+    // Clear previous state
+    panels.forEach(panel => {
+      panel.classList.remove("focused", "shrunk");
+    });
+    layout.classList.remove("focus-left", "focus-right");
+
+    if (!focusedPanel) {
+      // Reset: everyone equal, map full height
+      if (mapWrapper) mapWrapper.classList.remove("map-compressed");
+      return;
+    }
+
+    // One panel is focused, others shrunk
+    panels.forEach(panel => {
+      if (panel === focusedPanel) {
+        panel.classList.add("focused");
+      } else {
+        panel.classList.add("shrunk");
+      }
+    });
+
+    // Decide which side to enlarge, based on which rail contains the panel
+    const rail = focusedPanel.closest("#leftRail, #rightRail");
+    if (rail) {
+      if (rail.id === "leftRail") {
+        layout.classList.add("focus-left");
+      } else if (rail.id === "rightRail") {
+        layout.classList.add("focus-right");
+      }
+    }
+
+    if (mapWrapper) {
+      mapWrapper.classList.add("map-compressed");
+    }
+  }
+
+  panels.forEach(panel => {
+    const header = panel.querySelector(".panel-header");
+    if (!header) return;
+
+    // collapse button: just folds body
+    const hideBtn = panel.querySelector(".panel-hide");
+    if (hideBtn) {
+      hideBtn.addEventListener("click", () => {
+        panel.classList.toggle("collapsed");
+      });
+    }
+
+    // expand/focus button: mirrors your old toggleSVGSize logic
+    const expandBtn = panel.querySelector(".panel-expand");
+    if (expandBtn) {
+      expandBtn.addEventListener("click", () => {
+        const isFocused = panel.classList.contains("focused");
+        if (isFocused) {
+          // clicking again on the focused one clears focus
+          applyFocusState(null);
+        } else {
+          applyFocusState(panel);
+        }
       });
     }
   });
@@ -647,8 +739,8 @@ const scenes = [
       showCityToggle: true,
       showUnitToggle: true,
       showCorrPanel: true,
-      showBrushControls: false,
-      showSimSummary: false
+      showBrushControls: true,
+      showSimSummary: true
     });
 
     setLayerControls(
@@ -660,7 +752,7 @@ const scenes = [
     );
 
     showWardCompare(true);
-    showCityCompare(false);
+    showCityCompare(true);
     showUhiCompare(true);
   },
 
@@ -678,13 +770,13 @@ const scenes = [
       showCityToggle: true,
       showUnitToggle: true,
       showCorrPanel: false,     // too much when bivariate
-      showBrushControls: false,
-      showSimSummary: false
+      showBrushControls: true,
+      showSimSummary: true
     });
 
     setLayerControls([], null);
 
-    showWardCompare(false);
+    showWardCompare(true);
     showCityCompare(true);
     showUhiCompare(true);
   }
@@ -694,91 +786,98 @@ const scenes = [
 // Scrollama wiring
 // ------------------------------------
 function initScroller() {
-  const scroller = scrollama();
+  const Scrollama = window.scrollama;
+  if (!Scrollama) {
+    console.error("Scrollama is not available on window. Check script order.");
+    return;
+  }
+
+  const scroller = Scrollama();
+  console.log("[scrolly] Scrollama initialized");
 
   scroller
     .setup({
       step: "#scrollTriggers .step",
       offset: 0.6,
-      debug: false
+      debug: false   // show markers
     })
     .onStepEnter(async response => {
       const idx = Number(response.element.dataset.scene);
-      const direction = response.direction; // 'up' or 'down'
+      const direction = response.direction;
+      console.log("[scrolly] step enter:", idx, "direction:", direction);
       
       // Update scene number before triggering the scene
       if (mapController) {
         mapController.setSceneNumber(idx);
       }
-      
-      // When scrolling down, show the scene we're entering
-      // When scrolling up, show the scene we're entering (going back to)
-      // Both are the same - just trigger the scene for the step we're entering
+
       const fn = scenes[idx];
-      if (fn && mapController) await fn();
+      if (fn && mapController) {
+        try {
+          console.log("[scrolly] running scene", idx);
+          await fn();
+        } catch (err) {
+          console.error("[scrolly] error in scene", idx, err);
+        }
+      } else {
+        console.warn("[scrolly] no scene fn or mapController for idx", idx);
+      }
     });
 
-  window.addEventListener("resize", () => scroller.resize());
+  window.addEventListener("resize", () => {
+    console.log("[scrolly] resize");
+    scroller.resize();
+  });
 }
 
 // ------------------------------------
 // Boot
 // ------------------------------------
 (async function main() {
-  // Determine which scene is currently in view based on scroll position BEFORE initializing the map
-  const steps = document.querySelectorAll("#scrollTriggers .step");
-  const viewportHeight = window.innerHeight;
-  const triggerPoint = viewportHeight * 0.6; // Match scrollama offset
+  try {
+    console.log("[scrolly] main() starting");
+
+    // 1. Initialize map + controller
+    await initMainMap();
+    console.log("[scrolly] map initialized", !!mapController);
+
+    // 2. Expose globally for other scripts
+    window.mapController = mapController;
   
-  let activeSceneIndex = 0;
-  
-  // Find which step is currently at or past the trigger point
-  steps.forEach((step, index) => {
-    const rect = step.getBoundingClientRect();
-    if (rect.top <= triggerPoint) {
-      activeSceneIndex = index;
+    // Set initial scene number before applying the scene
+    //mapController.setSceneNumber(activeSceneIndex);
+
+    // 3. Set default temp unit if method exists
+    if (mapController && typeof mapController.setTempUnit === "function") {
+      mapController.setTempUnit("C");
+      console.log("[scrolly] setTempUnit -> C");
+    } else {
+      console.warn("[scrolly] mapController.setTempUnit missing");
     }
-  });
 
-  // Initialize the map
-  await initMainMap();
-  
-  // Expose mapController globally for other panels (UHI, intercity) to access temperature methods
-  window.mapController = mapController;
-  
-  // Set initial scene number before applying the scene
-  mapController.setSceneNumber(activeSceneIndex);
-  
-  // Set initial temperature unit (will persist across scenes unless user changes it)
-  mapController.setTempUnit("C");
-  
-  initFloatingPanels();
-  initScroller();
-  
-  // Apply the active scene's state immediately after map initialization
-  // Force animate: false for initial load by temporarily overriding setLayer
-  if (scenes[activeSceneIndex]) {
-    // Store the original setLayer
-    const originalSetLayer = mapController.setLayer;
-    
-    // Temporarily override to force animate: false on initial load
-    mapController.setLayer = function(id, options = {}) {
-      return originalSetLayer.call(this, id, { ...options, animate: false });
-    };
-    
-    // Call the scene and wait for it to complete (especially important for async operations like setBivariate)
-    await scenes[activeSceneIndex]();
-    
-    // Restore the original setLayer
-    mapController.setLayer = originalSetLayer;
-  }
+    // 4. Panels (expand/collapse behavior)
+    initPanels();
+    console.log("[scrolly] panels initialized");
 
-  // Global reset: reload to restore brushes, scenes, panel positions, etc.
-  const resetBtn = document.getElementById("mapResetButton");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
-      window.location.reload();
-    });
+    // 5. Scrollama wiring
+    initScroller();
+    console.log("[scrolly] scroller initialized");
+
+    // 6. Force scene 0 on load so overlay isn’t blank
+    if (scenes[0] && mapController) {
+      console.log("[scrolly] running initial scene 0");
+      await scenes[0]();
+    }
+
+    // 7. Reset button: full page reset
+    const resetBtn = document.getElementById("mapResetButton");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
+    }
+  } catch (err) {
+    console.error("[scrolly] fatal error in main()", err);
   }
 
   // Add hover behavior to overlayText to allow tooltip interaction

@@ -782,7 +782,7 @@ async function createCityGridMap(config) {
   const svg = container.append("svg")
     .attr("width", width)
     .attr("height", height)
-    .style("display", "block")
+    .style("display", "sticky")
     .style("shape-rendering", "crispEdges");
 
   const rootG = svg.append("g").attr("class", "grid-root");
