@@ -2527,7 +2527,8 @@ export async function createMultiCityGridMap(config) {
     .attr("id", innerId)
     .style("position", "relative")
     .style("width", "100%")
-    .style("height", height + "px");
+    .style("height", height + "px")
+    .style("overflow", "hidden");
 
   // City image + captions you were updating before
   const cityImages = {
@@ -2547,7 +2548,10 @@ export async function createMultiCityGridMap(config) {
   };
 
   let currentCityId = defaultCityId || cityConfigs[0].id;
+  let previousCityId = null;
   let currentCityController = null;
+  let currentSceneNumber = 0;
+  let previousSceneNumber = -1;
   let bivariateMode = !!bivariate;
   let currentBivariateVars = bivariateVars || null;
   let currentTempUnit = "C"; // Track temperature unit preference globally
@@ -2571,6 +2575,62 @@ export async function createMultiCityGridMap(config) {
   async function renderCurrentCity() {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
+
+    // Determine animation direction based on scene number
+    const isScrollingUp = previousSceneNumber > currentSceneNumber;
+
+    const innerContainer = d3.select(innerSelector);
+    const containerNode = innerContainer.node();
+    const containerWidth = containerNode.clientWidth;
+    const containerHeight = containerNode.clientHeight;
+    
+    // Get the body background color
+    const bodyBgColor = window.getComputedStyle(document.body).backgroundColor;
+    
+    // Create LEGO brick parameters
+    const brickWidth = 60;
+    const brickHeight = 40;
+    const cols = Math.ceil(containerWidth / brickWidth);
+    const rows = Math.ceil(containerHeight / brickHeight);
+    
+    // Create brick data
+    const bricks = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        bricks.push({
+          x: col * brickWidth,
+          y: row * brickHeight,
+          width: brickWidth,
+          height: brickHeight,
+          delay: row * 10, // Delay based on row
+          row: row // Store row for reverse animation
+        });
+      }
+    }
+    
+    // Create overlay SVG with rectangles already visible (no initial animation)
+    const brickOverlay = innerContainer.append("svg")
+      .style("position", "absolute")
+      .style("top", "0")
+      .style("left", "0")
+      .style("width", "100%")
+      .style("height", "100%")
+      .style("pointer-events", "none")
+      .style("z-index", "10000")
+      .attr("width", containerWidth)
+      .attr("height", containerHeight);
+    
+    // Add rectangles that will cover the image (start at full opacity)
+    const brickRects = brickOverlay.selectAll("rect")
+      .data(bricks)
+      .enter()
+      .append("rect")
+      .attr("x", d => d.x)
+      .attr("y", d => d.y)
+      .attr("width", d => d.width)
+      .attr("height", d => d.height)
+      .attr("fill", bodyBgColor)
+      .attr("opacity", 1);  // Start visible, no animation
 
     // Tear down old city map
     if (currentCityController) {
@@ -2618,6 +2678,63 @@ export async function createMultiCityGridMap(config) {
     // Temperature unit is already set via initialTempUnit parameter
     // No need to call setTempUnit again
     
+    // Re-create the overlay SVG to ensure it's on top of the new map
+    brickOverlay.remove();
+    const newBrickOverlay = innerContainer.append("svg")
+      .style("position", "absolute")
+      .style("top", "0")
+      .style("left", "0")
+      .style("width", "100%")
+      .style("height", "100%")
+      .style("pointer-events", "none")
+      .style("z-index", "10000")
+      .attr("width", containerWidth)
+      .attr("height", containerHeight);
+    
+    // Re-create the rectangles at full opacity
+    const newBrickRects = newBrickOverlay.selectAll("rect")
+      .data(bricks)
+      .enter()
+      .append("rect")
+      .attr("x", d => d.x)
+      .attr("y", d => d.y)
+      .attr("width", d => d.width)
+      .attr("height", d => d.height)
+      .attr("fill", bodyBgColor)
+      .attr("opacity", 1);
+    
+    // Now remove the bricks from top to bottom OR bottom to top based on direction
+    if (isScrollingUp) {
+      // Bottom to top: start with the last row
+      for (let row = rows - 1; row >= 0; row--) {
+        setTimeout(() => {
+          newBrickRects.filter(d => d.row === row)
+            .transition()
+            .duration(8.75)
+            .attr("opacity", 0);
+        }, (rows - 1 - row) * 12.5);
+      }
+    } else {
+      // Top to bottom: start with the first row
+      for (let row = 0; row < rows; row++) {
+        setTimeout(() => {
+          newBrickRects.filter(d => d.row === row)
+            .transition()
+            .duration(8.75)
+            .attr("opacity", 0);
+        }, row * 12.5);
+      }
+    }
+    
+    // Update previous city ID and scene number for next transition
+    previousCityId = currentCityId;
+    previousSceneNumber = currentSceneNumber;
+
+    // Wait for all bricks to disappear, then remove overlay
+    await new Promise(resolve => setTimeout(resolve, bricks[bricks.length - 1].delay + 50));
+    newBrickOverlay.remove();
+    brickOverlay.remove();
+    
     return currentCityController;
   }
 
@@ -2634,6 +2751,13 @@ export async function createMultiCityGridMap(config) {
   // Return high-level controller for scrolly to drive
   // -------------------------------------------------------
   const mapController = {
+    /**
+     * Set current scene number (for animation direction tracking).
+     */
+    setSceneNumber(sceneNum) {
+      currentSceneNumber = sceneNum;
+    },
+
     /**
      * Switch active city (Tokyo, London, etc.).
      */

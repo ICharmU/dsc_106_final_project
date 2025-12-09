@@ -660,6 +660,11 @@ function initScroller() {
       const idx = Number(response.element.dataset.scene);
       const direction = response.direction; // 'up' or 'down'
       
+      // Update scene number before triggering the scene
+      if (mapController) {
+        mapController.setSceneNumber(idx);
+      }
+      
       // When scrolling down, show the scene we're entering
       // When scrolling up, show the scene we're entering (going back to)
       // Both are the same - just trigger the scene for the step we're entering
@@ -694,6 +699,9 @@ function initScroller() {
   
   // Expose mapController globally for other panels (UHI, intercity) to access temperature methods
   window.mapController = mapController;
+  
+  // Set initial scene number before applying the scene
+  mapController.setSceneNumber(activeSceneIndex);
   
   // Set initial temperature unit (will persist across scenes unless user changes it)
   mapController.setTempUnit("C");
