@@ -43,15 +43,14 @@ header {
 }
 
 .left-static-text {
-  position: sticky;
-  top: 120px; /* adjust so it's level with the top of the map */
-  width: 260px;
-  background: white;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  height: fit-content;
-  z-index: 5;
+    position: fixed;      /* fixed relative to viewport */
+    left: 0;              /* flush to left edge of page */
+    top: 82%;             /* vertically center, adjust as needed */
+    transform: translateY(-50%);
+    width: 250px;         /* optional width */
+    padding: 16px;
+    color: black;
+
 }
 
 

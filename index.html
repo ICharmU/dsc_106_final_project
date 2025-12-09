@@ -37,27 +37,38 @@
 
     <h3>What factors are most important?</h3>
     <p>Through an analysis of multiple metropolitan cities, our group seeks to analyze how the factors of greenness, land cover, and daytime surface temperature impact nighttime surface temperature. We seek to answer the question:</p>
-    
+  
     <div class="text-box">
     What factors contribute most to this phenomenon, and what can urban cities do to reverse this?
-  </div>
+    </div>
+  <header>
     
   <!-- Scrollytelling container -->
 <section id="scrolly">
+  <div class="left-static-text">
+      <h3>Features of Measurement</h3>
+      <p><b>Dayttime and Nighttime Land Surface Temperature:</b> a 15 year average across Jan 2010-August 2025</p>
+      <p><b>NDVI (greenness):</b> amount of green vegetation, value range of -1 (barren areas) to 1 (high vegetation) </p>
+      <p><b>Land cover:</b> physical material of Earth surface (eg. human-made vs natural material) </p>
+    </div>
 
   <!-- Sticky fullscreen-ish map wrapper -->
   <div id="mapWrapper">
+    
     <div id="mainMap" class="viz"></div>
 
     <!-- Text overlay that updates on scroll -->
-    <div id="overlayText">
-      <h2 id="sceneTitle"></h2>
-      <p id="sceneBody"></p>
+    <div class="text-box">
+      <div id="overlayText">
+        <h2 id="sceneTitle"></h2>
+        <p id="sceneBody"></p>
+      </div>
     </div>
 
     <div id="mapResetButton">Reset story</div>
     <div id="layerControls"></div>
 
+    
     
 
     <!-- Comparison panels -->
