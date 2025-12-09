@@ -14,31 +14,31 @@ let mapController = null;
 const SCENE_TEXT = [
   {
     title: "Heat isn’t evenly shared within a city.",
-    body: "To start, we focus on nighttime land surface temperature in London. Each small square is a 1 km grid cell; borough borders are outlined. Notice how some neighborhoods stay much warmer than others even after the sun goes down."
+    body: "Focusing on nighttime land surface temperature (LST) in London, we map out a distribution of temperature across each borough (neighborhood). Each small square is a 1 km grid cell; borough borders are outlined. Notice how some boroughs stay warmer than others even after sundown."
   },
   {
     title: "Within-city inequality: borough by borough.",
-    body: "Now we link the map to a borough-level comparison chart. Hover over any borough in London to see its distribution of nighttime temperatures and how it compares to the city as a whole."
+    body: "To make easier comparisons between boroughs, we link a comparison chart to accompany the map. Hover over any borough in London to see the average of nighttime temperatures, and how it compares to an across-city average."
   },
   {
     title: "Day vs. night: heat that lingers.",
-    body: "Switching to daytime temperature reveals where heat builds up most in the afternoon. Compare these patterns to the nighttime map: many hot-at-night boroughs are also hot in the day, but not all."
+    body: "Switching between daytime and nighttime temperatures reveals where heat builds up most in the afternoon. Notice how many hot-at-night boroughs stay hot during the day, but this is only applicable to central London."
   },
   {
     title: "Where does greenness fit in?",
-    body: "Now we map NDVI, a satellite measure of vegetation. Greener areas tend to cool more quickly; bare or built-up surfaces stay hotter. We also show how NDVI relates statistically to temperature in the correlation panel."
+    body: "We can now map NDVI, a satellite measure of vegetation. Comparing vegetation to daytime and nighttime temperature, greener areas cool more quickly throughout the day; bare or human-built-up surfaces stay consistently hotter. "
   },
   {
     title: "Across cities, the story repeats.",
-    body: "Let’s zoom out. You can now switch between Tokyo, London, New York, and San Diego. We’ll keep daytime temperature on the map so you can see which cities have the strongest contrast between neighborhoods."
+    body: "London isn’t the only city that sees this trend in greenness and temperature change. Zooming out, you can now switch between Tokyo, London, New York, and San Diego. Keeping all active features, we can perform a similar analysis of London and view the temperature contrast."
   },
   {
     title: "A ‘what-if’ greenness simulator.",
-    body: "With NDVI active, you can ‘paint’ more vegetation into specific neighborhoods. We estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
+    body: "How can introducing more green spaces benefit metropolitan areas? Our simulation allows us to do this analysis. With our vegetation tab active, you can “paint” and add more vegetation to specific neighborhoods. We can estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
   },
   {
     title: "Comparing neighborhoods across cities.",
-    body: "Instead of just looking within one city, we can line up comparable neighborhoods across the four cities. The intra-city chart stays linked to the map so London’s boroughs remain interpretable while we bring others into view."
+    body: "With a simulated view of each city, you can now compare neighborhoods across the four cities. The intra-city chart stays linked to the map so London’s boroughs remain interpretable while we bring others into view."
   },
   {
     title: "Greenness vs heat: a two-dimensional view.",
