@@ -24,3 +24,214 @@ h2 {
     border-radius: 8px;
     overflow: hidden;
 }
+
+#scrolly {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 16px 120px;
+}
+
+#scrollTriggers,
+#scrollTriggers .step {
+    pointer-events: none;
+}
+
+#mapWrapper {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    z-index: 0;
+}
+
+#mainMap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Text overlays the map */
+#overlayText {
+    position: absolute;
+    left: 5%;
+    bottom: 10%;
+    max-width: 420px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    pointer-events: auto;
+    /* so pan/zoom still work */
+}
+
+#overlayText h2 {
+    margin: 0 0 6px;
+    font-size: 1.4rem;
+}
+
+#overlayText p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* Custom layer controls (bottom center) */
+#layerControls {
+    position: absolute;
+    left: 50%;
+    bottom: 6%;
+    transform: translateX(-50%);
+    display: none;
+    /* scenes will turn this on */
+    gap: 8px;
+    background: rgba(250, 250, 250, 0.95);
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    z-index: 20;
+}
+
+#layerControls button {
+    border: 1px solid #ccc;
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+#layerControls button.active {
+    background: #333;
+    color: #fff;
+}
+
+/* Scroll triggers: tall, invisible blocks to drive scenes */
+#scrollTriggers {
+    position: relative;
+    margin-top: 100vh;
+    /* so you scroll past map for scene changes */
+}
+
+#scrollTriggers .step {
+    height: 80vh;
+}
+
+/* Comparison panels appear below the scrolly map */
+.comparison-panel {
+    max-width: 1000px;
+    margin: 40px auto 0;
+}
+
+/* We’ll toggle these from JS */
+/* #wardCompare,
+#cityCompare {
+    display: none;
+} */
+
+#wardCompare,
+#cityCompare,
+#uhiCompare {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: 360px;
+    height: 260px;
+    background: rgba(250, 250, 250, 0.96);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    padding: 6px 8px;
+    overflow: hidden;
+    z-index: 15;
+}
+
+/* Floating comparison panels (start hidden, scrolly.js toggles display) */
+.comparison-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 420px;
+    height: 280px;
+    background: rgba(250, 250, 250, 0.96);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    /* scenes show/hide */
+    resize: both;
+    /* user can resize */
+    overflow: hidden;
+    /* keep internals clipped */
+    z-index: 15;
+}
+
+/* Shared header for dragging + hide button */
+.comparison-panel .panel-header {
+    height: 30px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(240, 240, 240, 0.96);
+    border-bottom: 1px solid #ddd;
+    cursor: move;
+    /* draggable handle */
+}
+
+.comparison-panel .panel-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.comparison-panel .panel-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.panel-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 12px;
+}
+
+/* Body where D3 renders charts */
+.comparison-panel .panel-body {
+    position: relative;
+    padding: 6px 8px;
+    height: calc(100% - 30px);
+    flex: 1 1 auto;
+    overflow: hidden;
+    /* change to auto if you prefer scrollbars */
+}
+
+/* Collapsed state (when user clicks hide button) */
+.comparison-panel.collapsed .panel-body {
+    display: none;
+}
+
+.comparison-panel.collapsed {
+    height: auto;
+}
+
+#mapResetButton {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    padding: 4px 8px;
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 30;
+    user-select: none;
+}
+
+#mapResetButton:hover {
+    background: rgba(0, 0, 0, 0.9);
+}

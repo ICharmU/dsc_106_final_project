@@ -27,7 +27,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
                     checks can return wrong value instead of an error
     """
     
-    MIN_LON, MIN_LAT, MAX_LON, MAX_LAT = LAT_LONG;
+    MIN_LON, MIN_LAT, MAX_LON, MAX_LAT = LAT_LONG
 
     def gap_fill(arr, iterations=5, mask=None):
         """
@@ -66,12 +66,12 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
         return out
     
     def common_lc(arr):
-        comm_lc = {};
+        comm_lc = {}
         for elem in arr:
             if elem in comm_lc:
-                comm_lc[elem] += 1;
+                comm_lc[elem] += 1
             else:
-                comm_lc[elem] = 0;
+                comm_lc[elem] = 0
         return max(comm_lc, key=comm_lc.get)
 
     # 1. Load NDVI (single-band)
@@ -101,11 +101,11 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
             lst_night_raw = lst_raw[1].astype("float32")
         else:
             raise ValueError(
-                f"Unexpected LST shape {lst_raw.shape}; "
+                f"Unexpected LST shape {lst_raw.shape} "
                 f"cannot align with NDVI shape {(H, W)}"
             )
     else:
-        raise ValueError(f"Expected 3D LST GeoTIFF with 2 bands; got shape {lst_raw.shape}")
+        raise ValueError(f"Expected 3D LST GeoTIFF with 2 bands got shape {lst_raw.shape}")
 
     # MOD11A2: scale 0.02, Kelvin
     scale_LST = 0.02
@@ -127,7 +127,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
     if lc.ndim == 3:
         lc = lc[0]
 
-    geoms = [];
+    geoms = []
     ward_ids = np.zeros((H, W), dtype="int32")
     ward_names = {}
 
@@ -187,7 +187,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
                     or props.get("BoroName")
                     or f"Ward {idx}"
                 )
-                name = name.replace("_", " ").replace("-", " ").title();
+                name = name.replace("_", " ").replace("-", " ").title()
                 ward_names[idx] = name
 
     # assign each pixel to a ward by its centre point
@@ -218,9 +218,9 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
     lst_day_grid = lst_day_filled.copy()
     lst_night_grid = lst_night_filled.copy()
 
-    ndvi_grid[~inside_mask] = 0.0
-    lst_day_grid[~inside_mask] = 0.0
-    lst_night_grid[~inside_mask] = 0.0
+    # ndvi_grid[~inside_mask] = 0.0
+    # lst_day_grid[~inside_mask] = 0.0
+    # lst_night_grid[~inside_mask] = 0.0
 
     # global min/max within wards only
     ndvi_min = float(np.min(ndvi_filled[inside_mask]))
@@ -229,7 +229,7 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
     lst_day_max = float(np.max(lst_day_filled[inside_mask]))
     lst_night_min = float(np.min(lst_night_filled[inside_mask]))
     lst_night_max = float(np.max(lst_night_filled[inside_mask]))
-    lc_max = common_lc(lc[inside_mask]);
+    lc_max = common_lc(lc[inside_mask])
 
 
     # 5. Ward-level stats
@@ -290,9 +290,9 @@ def preprocess(city, NDVI_TIF, LST_TIF, LC_TIF, mult_json, BOUND_PATH, GRID_OUT,
 
         lc_mask = (ward_ids == wid)
         lc_pix_vals = lc[lc_mask]
-        ward_lc = 0;
+        ward_lc = 0
         if lc_pix_vals.size != 0:
-            ward_lc = common_lc(lc_pix_vals);
+            ward_lc = common_lc(lc_pix_vals)
 
         wards_output.append({
             "id": wid,
@@ -375,33 +375,38 @@ TOKYO_LC = "data/tokyo/tokyo_LC.tif"
 TOKYO_WARDS_DIR = "data/tokyo_wards"
 TOKYO_GRID_OUT = "data/tokyo/tokyo_grid.json"
 TOKYO_WARDS_OUT = "data/tokyo/tokyo_wards.json"
-TOKYO_LAT_LONG = [139.3, 35.4, 140.2, 36.2];
-preprocess("Tokyo", TOKYO_NDVI, TOKYO_LST, TOKYO_LC, True, TOKYO_WARDS_DIR, TOKYO_GRID_OUT, TOKYO_WARDS_OUT, TOKYO_LAT_LONG);
+TOKYO_LAT_LONG = [139.3, 35.4, 140.2, 36.2]
+preprocess("Tokyo", TOKYO_NDVI, TOKYO_LST, TOKYO_LC, True, TOKYO_WARDS_DIR, TOKYO_GRID_OUT, TOKYO_WARDS_OUT, TOKYO_LAT_LONG)
+"""
 
+"""
 LONDON_NDVI = "data/london/london_NDVI_2020_summer.tif"
 LONDON_LST  = "data/london/london_LST_2020_summer.tif"
 LONDON_LC = "data/london/london_LC_2020.tif"
 LONDON_WARDS_DIR = "data/london/boundaries/london32.json"
 LONDON_GRID_OUT = "data/london/london_grid.json"
 LONDON_WARDS_OUT = "data/london/london_boroughs.json"
-LONDON_LAT_LONG = [-0.5, 51.3, 0.3, 51.7];
-preprocess("London", LONDON_NDVI, LONDON_LST, LONDON_LC, False, LONDON_WARDS_DIR, LONDON_GRID_OUT, LONDON_WARDS_OUT, LONDON_LAT_LONG);
+LONDON_LAT_LONG = [-0.5, 51.3, 0.3, 51.7]
+preprocess("London", LONDON_NDVI, LONDON_LST, LONDON_LC, False, LONDON_WARDS_DIR, LONDON_GRID_OUT, LONDON_WARDS_OUT, LONDON_LAT_LONG)
+"""
 
+"""
 NYC_NDVI = "data/nyc/nyc_NDVI.tif"
 NYC_LST  = "data/nyc/nyc_LST.tif"
 NYC_LC = "data/nyc/nyc_LC.tif"
 NYC_WARDS_DIR = "data/nyc/boundaries/nyc.json"
 NYC_GRID_OUT = "data/nyc/nyc_grid.json"
 NYC_WARDS_OUT = "data/nyc/nyc_boroughs.json"
-NYC_LAT_LONG = [-74.27, 40.49, -73.68, 40.92];
-preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG, "BoroName");
+NYC_LAT_LONG = [-74.27, 40.49, -73.68, 40.92]
+preprocess("New York City", NYC_NDVI, NYC_LST, NYC_LC, False, NYC_WARDS_DIR, NYC_GRID_OUT, NYC_WARDS_OUT, NYC_LAT_LONG, "BoroName")
+"""
+
 
 SD_NDVI = "data/san-diego/sandiego_NDVI.tif"
 SD_LST  = "data/san-diego/sandiego_LST.tif"
 SD_LC = "data/san-diego/sandiego_LC.tif"
-SD_WARDS_DIR = "data/san-diego/boundaries/Council_Districts.geojson"
+SD_WARDS_DIR = "data/san-diego/boundaries/san-diego.geojson"
 SD_GRID_OUT = "data/san-diego/sandiego_grid.json"
 SD_WARDS_OUT = "data/san-diego/sandiego_boroughs.json"
-SD_LAT_LONG = [-117.6, 32.53, -116.08, 33.49];
-preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG, "JUR_NAME");
-"""
+SD_LAT_LONG = [-117.6, 32.53, -116.08, 33.49]
+preprocess("San Diego", SD_NDVI, SD_LST, SD_LC, False, SD_WARDS_DIR, SD_GRID_OUT, SD_WARDS_OUT, SD_LAT_LONG, "name")
