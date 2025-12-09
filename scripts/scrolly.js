@@ -33,6 +33,10 @@ const SCENE_TEXT = [
     body: "Let’s zoom out. You can now switch between Tokyo, London, New York, and San Diego. We’ll keep daytime temperature on the map so you can see which cities have the strongest contrast between neighborhoods."
   },
   {
+    title: "Land cover can also influence heat",
+    body: "Here you can see..."
+  },
+  {
     title: "A ‘what-if’ greenness simulator.",
     body: "With NDVI active, you can ‘paint’ more vegetation into specific neighborhoods. We estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
   },
@@ -531,9 +535,39 @@ const scenes = [
     showCityCompare(false);
   },
 
-  // 5: What-if greenness simulator – NDVI, painting on
+  // 5: Land cover
   () => {
     setSceneText(5);
+    mapController.setBivariate(false);
+    mapController.setCity("tokyo");
+    mapController.setLayer("lc", { animate: true });
+    mapController.setTempUnit("C");
+
+    // 🔑 now city toggle row makes sense
+    mapController.setControlsVisibility({
+      showCityToggle: true,
+      showUnitToggle: true,
+      showCorrPanel: false,
+      showBrushControls: false,
+      showSimSummary: false
+    });
+
+    setLayerControls(
+      [
+        { id: "lc",   label: "Land Cover Type" },
+        { id: "lst_day",   label: "Daytime Temp." },
+        { id: "lst_night", label: "Nighttime Temp." }
+      ],
+      "lc"
+    );
+
+    showWardCompare(false);
+    showCityCompare(false);
+  },
+
+  // 6: What-if greenness simulator – NDVI, painting on
+  () => {
+    setSceneText(6);
     mapController.setBivariate(false);
     mapController.setLayer("ndvi", { animate: true });
 
@@ -559,9 +593,9 @@ const scenes = [
     showCityCompare(false);
   },
 
-  // 6: Inter-neighborhood across cities
+  // 7: Inter-neighborhood across cities
   () => {
-    setSceneText(6);
+    setSceneText(7);
     mapController.setBivariate(false);
     mapController.setLayer("lst_day", { animate: true });
 
@@ -585,9 +619,9 @@ const scenes = [
     showCityCompare(false);
   },
 
-  // 7: Final bivariate view + inter-city chart
+  // 8: Final bivariate view + inter-city chart
   () => {
-    setSceneText(7);
+    setSceneText(8);
     mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
     mapController.setTempUnit("C");
 
