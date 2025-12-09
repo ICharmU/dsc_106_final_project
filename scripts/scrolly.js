@@ -672,7 +672,6 @@ const scenes = [
       currentCity = "tokyo";
     }
     await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
-    await mapController.setlcBorder(true);
 
     mapController.setControlsVisibility({
       showCityToggle: true,

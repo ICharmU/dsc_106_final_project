@@ -887,11 +887,12 @@ async function createCityGridMap(config) {
 
   const landCoverColorMap = buildLandCoverColorMap();
 
-  function createLcBorder(x1, x2, y1, y2, lcColor) {
+  function createLcBorder(x1, x2, y1, y2, lcColor, opacity=1) {
     borderG.append("line")
         .attr("x1", x1).attr("y1", y1)
         .attr("x2", x2).attr("y2", y2)
-        .attr("stroke", lcColor);
+        .attr("stroke", lcColor)
+        .style("opacity", opacity);
   }
 
   // Generate borders based on the pixels' assigned wardIds
@@ -900,57 +901,84 @@ async function createCityGridMap(config) {
   for (let row = 0; row < rasterHeight; row++) {
     for (let col = 0; col < rasterWidth; col++) {
       const idx = row * rasterWidth + col;
-    
+      
+      const wId = pixels[idx].wardId;
+      
       if (lcUnit) {
         let x1 = 0;
         let x2 = 0;
         let y1 = 0;
         let y2 = 0;
+        let lcColor1;
+        let lcColor2;
+        let lcColor;
+        const backOpacity = 0.1;
 
         //right edge
         x1  = xOffset + (col + 1) * cellWidth;
         y1 = yOffset + row * cellHeight;
         y2 = yOffset + (row + 1) * cellHeight;
-        let lcColor = landCoverColorMap[pixels[idx].lc];
+        lcColor1 = landCoverColorMap[pixels[idx].lc];
         if (col < rasterWidth - 1) {
-            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx + 1].lc]);
+            lcColor2 = landCoverColorMap[pixels[idx + 1].lc];
+            lcColor = blendColors(lcColor1, lcColor2);
         }
-        createLcBorder(x1, x1, y1, y2, lcColor);
+        if (!wId) {
+            createLcBorder(x1, x1, y1, y2, lcColor, backOpacity);
+        }
+        else {
+            createLcBorder(x1, x1, y1, y2, lcColor);
+        }
 
         //left edge
         x1  = xOffset + col * cellWidth;
         y1 = yOffset + row * cellHeight;
         y2 = yOffset + (row + 1) * cellHeight;
-        lcColor = landCoverColorMap[pixels[idx].lc];
+        lcColor1 = landCoverColorMap[pixels[idx].lc];
         if (col > 0) {
-            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx - 1].lc]);
+            lcColor2 = landCoverColorMap[pixels[idx - 1].lc];
+            lcColor = blendColors(lcColor1, lcColor2);
         }
-        createLcBorder(x1, x1, y1, y2, lcColor);
-
+        if (!wId) {
+            createLcBorder(x1, x1, y1, y2, lcColor, backOpacity);
+        }
+        else {
+            createLcBorder(x1, x1, y1, y2, lcColor);
+        }
         //bottom edge
         y1  = yOffset + (row + 1) * cellHeight;
         x1 = xOffset + col * cellWidth;
         x2 = xOffset + (col + 1) * cellWidth;
-        lcColor = landCoverColorMap[pixels[idx].lc];
+        lcColor1 = landCoverColorMap[pixels[idx].lc];
         if (row < rasterHeight - 1) {
-            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx + rasterWidth].lc]);
+            lcColor2 = landCoverColorMap[pixels[idx + rasterWidth].lc];
+            lcColor = blendColors(lcColor1, lcColor2);
         }
-        createLcBorder(x1, x2, y1, y1, lcColor);
+        if (!wId) {
+            createLcBorder(x1, x2, y1, y1, lcColor, backOpacity);
+        }
+        else {
+            createLcBorder(x1, x2, y1, y1, lcColor);
+        }
         
         //top edge
         y1  = yOffset + row * cellHeight;
         x1 = xOffset + col * cellWidth;
         x2 = xOffset + (col + 1) * cellWidth;
-        lcColor = landCoverColorMap[pixels[idx].lc];
+        lcColor1 = landCoverColorMap[pixels[idx].lc];
         if (row > 0) {
-            lcColor = blendColors(landCoverColorMap[pixels[idx].lc], landCoverColorMap[pixels[idx - rasterWidth].lc]);
+            lcColor2 = landCoverColorMap[pixels[idx - rasterWidth].lc];
+            lcColor = blendColors(lcColor1, lcColor2);
         }
-        createLcBorder(x1, x2, y1, y1, lcColor);
+        if (!wId) {
+            createLcBorder(x1, x2, y1, y1, lcColor, backOpacity);
+        }
+        else {
+            createLcBorder(x1, x2, y1, y1, lcColor);
+        }
       }
 
-      const wId = pixels[idx].wardId;
       if (!wId) continue;
-
       // right edge - compare with neighbor to the right
       if (!lcUnit && col < rasterWidth - 1) {
         const wRight = pixels[idx + 1].wardId;
@@ -2895,7 +2923,7 @@ export async function createMultiCityGridMap(config) {
     },
 
     async setlcBorder(bool=false) {
-        const newLcBorder = !!bool;
+        const newLcBorder = bool;
         if (currentLcBorder === newLcBorder) return;
         currentLcBorder = newLcBorder;
         await renderCurrentCity(bool);
