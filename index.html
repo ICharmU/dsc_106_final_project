@@ -17,6 +17,7 @@
   <script type="module" src="scripts/genericMap.js" defer></script>
   <script type="module" src="scripts/compare.js" defer></script>
   <script type="module" src="scripts/intercity.js" defer></script>
+  <script type="module" src="scripts/uhiCompare.js" defer></script>
 
   <!-- Scrollama for scrollytelling -->
   <script src="https://unpkg.com/scrollama"></script>
@@ -27,62 +28,99 @@
 <body>
   <header>
     <h1>Why Some Neighborhoods Sleep Hotter</h1>
-    <h3  style="text-align: center;">By: Odessa Castillo, Uzair Gheewala, Sean Harmon, and Uday Ligampalli</h3>
-  </header>
+    <h4  style="text-align: center;">By: Odessa Castillo, Uzair Gheewala, Sean Harmon, and Uday Ligampalli</h4>
 
-  <section id="scrolly">
-    <!-- Sticky fullscreen-ish map wrapper -->
-    <div id="mapWrapper">
-      <div id="mainMap" class="viz"></div>
-  
-      <!-- Text overlay that we update on scroll -->
-      <div id="overlayText">
-        <h2 id="sceneTitle"></h2>
-        <p id="sceneBody"></p>
-      </div>
+    <p> Ever notice that when you sleep at night, it feels hotter? Even when your AC is on or the windows are open, the temperature inside your house feels hotter at nighttime vs. daytime. Don’t worry, what you may be experiencing is the urban heat island effect. </p>
 
-      <div id="mapResetButton">Reset story</div>
-  
-      <!-- Layer controls we manage ourselves (not the built-in ones) -->
-      <div id="layerControls"></div>
+    <h3>What is the urban heat island effect?</h3>
+    <p>A phenomenon where cities are significantly warmer than surrounding rural areas (2-5 degrees on average).  This phenomenon is attributed to a combination of factors, including high density, the distribution of land cover (man-made structures to natural landscape), and greenery.</p>
 
-      <!-- Comparison plots in normal flow, shown/hidden by scenes -->
-      <div id="wardCompare" class="comparison-panel">
-        <div class="panel-header" data-panel-id="wardCompare">
-          <span class="panel-title">Within-city comparison</span>
-          <div class="panel-controls">
-            <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
-            <button class="panel-btn panel-hide" title="Collapse">–</button>
-          </div>
-        </div>
-        <div class="panel-body"></div>
-      </div>
-      
-      <div id="cityCompare" class="comparison-panel">
-        <div class="panel-header" data-panel-id="cityCompare">
-          <span class="panel-title">Across-city comparison</span>
-          <div class="panel-controls">
-            <button class="panel-btn panel-reset" title="Reset panel">⟳</button>
-            <button class="panel-btn panel-hide" title="Collapse">–</button>
-          </div>
-        </div>
-        <div class="panel-body"></div>
-      </div>
+    <h3>What factors are most important?</h3>
+    <p>Through an analysis of multiple metropolitan cities, our group seeks to analyze how the factors of greenness, land cover, and daytime surface temperature impact nighttime surface temperature. We seek to answer the question:</p>
+    
+    <div class="text-box">
+    What factors contribute most to this phenomenon, and what can urban cities do to reverse this?
+  </div>
+    
+  <!-- Scrollytelling container -->
+<section id="scrolly">
 
+  <!-- Sticky fullscreen-ish map wrapper -->
+  <div id="mapWrapper">
+    <div id="mainMap" class="viz"></div>
+
+    <!-- Text overlay that updates on scroll -->
+    <div id="overlayText">
+      <h2 id="sceneTitle"></h2>
+      <p id="sceneBody"></p>
     </div>
-  
-    <!-- Invisible scroll triggers: they drive the scenes -->
-    <div id="scrollTriggers">
-      <div class="step" data-scene="0"></div>
-      <div class="step" data-scene="1"></div>
-      <div class="step" data-scene="2"></div>
-      <div class="step" data-scene="3"></div>
-      <div class="step" data-scene="4"></div>
-      <div class="step" data-scene="5"></div>
-      <div class="step" data-scene="6"></div>
-      <div class="step" data-scene="7"></div>
+
+    <div id="mapResetButton">Reset story</div>
+    <div id="layerControls"></div>
+
+    
+
+    <!-- Comparison panels -->
+    <div id="wardCompare" class="comparison-panel">
+      <div class="panel-header" data-panel-id="wardCompare">
+        <span class="panel-title">Within-city comparison</span>
+        <div class="panel-controls">
+          <button class="panel-btn panel-reset">⟳</button>
+          <button class="panel-btn panel-hide">–</button>
+        </div>
+      </div>
+      <div class="panel-body"></div>
     </div>
-  </section>
+
+    <div id="cityCompare" class="comparison-panel">
+      <div class="panel-header" data-panel-id="cityCompare">
+        <span class="panel-title">Across-city comparison</span>
+        <div class="panel-controls">
+          <button class="panel-btn panel-reset">⟳</button>
+          <button class="panel-btn panel-hide">–</button>
+        </div>
+      </div>
+      <div class="panel-body"></div>
+    </div>
+
+    <div id="uhiCompare" class="comparison-panel">
+      <div class="panel-header" data-panel-id="uhiCompare">
+        <span class="panel-title">Urban Heat Island comparison</span>
+        <div class="panel-controls">
+          <button class="panel-btn panel-reset">⟳</button>
+          <button class="panel-btn panel-hide">–</button>
+        </div>
+      </div>
+      <div class="panel-body"></div>
+    </div>
+
+  </div> <!-- /#mapWrapper -->
+
+  <!-- Invisible scroll triggers -->
+  <div id="scrollTriggers">
+    <div class="step" data-scene="0"></div>
+    <div class="step" data-scene="1"></div>
+    <div class="step" data-scene="2"></div>
+    <div class="step" data-scene="3"></div>
+    <div class="step" data-scene="4"></div>
+    <div class="step" data-scene="5"></div>
+    <div class="step" data-scene="6"></div>
+    <div class="step" data-scene="7"></div>
+  </div>
+
+</section>
+
+<!-- Conclusion section -->
+<section id="conclusion">
+  <div class="text-content">
+    <h2>What can we conclude?</h2>
+    <p>
+      With increased vegetation in our simulation leading to cooler nighttime temperatures across cities, it’s clear that cities could positively benefit. By having green initiatives and infrastructure that promotes adding more green spaces within high-temperature neighborhoods, this can lead to neighborhoods experiencing cooler nights and more comfortable sleep.
+    </p>
+  </div>
+</section>
+  
+
 
 </body>
   

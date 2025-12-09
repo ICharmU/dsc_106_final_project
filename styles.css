@@ -25,10 +25,40 @@ h2 {
     overflow: hidden;
 }
 
+header {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 16px 0px;
+
+}
+
+.text-box {
+  max-width: 1100px;   /* matches #scrolly */
+  margin: 0 auto;
+  padding: 20px;
+  border: 2px solid #ccc;
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+}
+
+.left-static-text {
+  position: sticky;
+  top: 120px; /* adjust so it's level with the top of the map */
+  width: 260px;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  height: fit-content;
+  z-index: 5;
+}
+
+
+
 #scrolly {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 40px 16px 120px;
 }
 
 #scrollTriggers,
@@ -63,6 +93,7 @@ h2 {
     padding: 12px 16px;
     border-radius: 8px;
     pointer-events: auto;
+    transition: opacity 0.3s ease;
     /* so pan/zoom still work */
 }
 
@@ -130,7 +161,8 @@ h2 {
 } */
 
 #wardCompare,
-#cityCompare {
+#cityCompare,
+#uhiCompare {
     position: absolute;
     right: 16px;
     bottom: 16px;
@@ -233,4 +265,18 @@ h2 {
 
 #mapResetButton:hover {
     background: rgba(0, 0, 0, 0.9);
+}
+
+#conclusion {
+max-width: 1100px;
+  margin: 0 auto;
+  padding: 60px 16px;
+  position: relative; /* make sure it's in normal flow */
+  z-index: 1; /* optional */
+ 
+}
+
+#conclusion .text-content {
+  line-height: 1.6;
+  font-size: 18px;
 }

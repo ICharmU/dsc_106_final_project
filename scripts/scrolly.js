@@ -14,23 +14,23 @@ let mapController = null;
 const SCENE_TEXT = [
   {
     title: "Heat isn’t evenly shared within a city.",
-    body: "To start, we focus on nighttime land surface temperature in London. Each small square is a 1 km grid cell; borough borders are outlined. Notice how some neighborhoods stay much warmer than others even after the sun goes down."
+    body: "Focusing on nighttime land surface temperature (LST) in London, we map out a distribution of temperature across each borough (neighborhood). Each small square is a 1 km grid cell; borough borders are outlined. Notice how some boroughs stay warmer than others even after sundown."
   },
   {
     title: "Within-city inequality: borough by borough.",
-    body: "Now we link the map to a borough-level comparison chart. Hover over any borough in London to see its distribution of nighttime temperatures and how it compares to the city as a whole."
+    body: "To make easier comparisons between boroughs, we link a comparison chart to accompany the map. Hover over any borough in London to see the average of nighttime temperatures, and how it compares to an across-city average."
   },
   {
     title: "Day vs. night: heat that lingers.",
-    body: "Switching to daytime temperature reveals where heat builds up most in the afternoon. Compare these patterns to the nighttime map: many hot-at-night boroughs are also hot in the day, but not all."
+    body: "Switching between daytime and nighttime temperatures reveals where heat builds up most in the afternoon. Notice how many hot-at-night boroughs stay hot during the day, but this is only applicable to central London."
   },
   {
     title: "Where does greenness fit in?",
-    body: "Now we map NDVI, a satellite measure of vegetation. Greener areas tend to cool more quickly; bare or built-up surfaces stay hotter. We also show how NDVI relates statistically to temperature in the correlation panel."
+    body: "We can now map NDVI, a satellite measure of vegetation. Comparing vegetation to daytime and nighttime temperature, greener areas cool more quickly throughout the day; bare or human-built-up surfaces stay consistently hotter. "
   },
   {
     title: "Across cities, the story repeats.",
-    body: "Let’s zoom out. You can now switch between Tokyo, London, New York, and San Diego. We’ll keep daytime temperature on the map so you can see which cities have the strongest contrast between neighborhoods."
+    body: "London isn’t the only city that sees this trend in greenness and temperature change. Zooming out, you can now switch between Tokyo, London, New York, and San Diego. Keeping all active features, we can perform a similar analysis of London and view the temperature contrast."
   },
   {
     title: "Land cover can also influence heat",
@@ -38,11 +38,11 @@ const SCENE_TEXT = [
   },
   {
     title: "A ‘what-if’ greenness simulator.",
-    body: "With NDVI active, you can ‘paint’ more vegetation into specific neighborhoods. We estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
+    body: "How can introducing more green spaces benefit metropolitan areas? Our simulation allows us to do this analysis. With our vegetation tab active, you can “paint” and add more vegetation to specific neighborhoods. We can estimate how much local daytime and nighttime temperatures would change if those pixels really became greener."
   },
   {
     title: "Comparing neighborhoods across cities.",
-    body: "Instead of just looking within one city, we can line up comparable neighborhoods across the four cities. The intra-city chart stays linked to the map so London’s boroughs remain interpretable while we bring others into view."
+    body: "With a simulated view of each city, you can now compare neighborhoods across the four cities. The intra-city chart stays linked to the map so London’s boroughs remain interpretable while we bring others into view."
   },
   {
     title: "Greenness vs heat: a two-dimensional view.",
@@ -80,9 +80,7 @@ function setLayerControls(layers, activeId) {
 
   buttons.exit().remove();
 
-  if (activeId) {
-    mapController.setLayer(activeId, { animate: false });
-  }
+  // Don't call setLayer here - it will be called by the scene or button click
 }
 
 // ------------------------------------
@@ -94,6 +92,9 @@ function showWardCompare(show) {
 
 function showCityCompare(show) {
   d3.select("#cityCompare").style("display", show ? "block" : "none");
+}
+function showUhiCompare(show) {
+  d3.select("#uhiCompare").style("display", show ? "block" : "none");
 }
 
 // ------------------------------------
@@ -252,6 +253,7 @@ async function initMainMap() {
         subunit: "Borough",
         enableNdviPainting: true,
         showLayerToggle: false,
+        defaultActiveId: "lst_night",
         layers: [
           {
             id: "ndvi",
@@ -397,14 +399,18 @@ async function initMainMap() {
 // -----------------------------------------------------
 // Scene definitions – across-city, intra-city early
 // -----------------------------------------------------
+let currentCity = null; // Track the current city to avoid unnecessary re-renders
+
 const scenes = [
   // 0: Hook – London, nighttime heat, no extra controls
-  () => {
+  async () => {
     setSceneText(0);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_night", { animate: true, fadeInBackground: true });
-    mapController.setTempUnit("C");
+    if (currentCity !== "london") {
+      await mapController.setCity("london");
+      currentCity = "london";
+    }
+    mapController.setLayer("lst_night", { animate: false });
 
     // 🔑 Only temp-unit pill, nothing else yet
     mapController.setControlsVisibility({
@@ -418,15 +424,17 @@ const scenes = [
     setLayerControls([], null);
     showWardCompare(false);
     showCityCompare(false);
+    showUhiCompare(false); 
   },
 
   // 1: Intra-city inequality – wardCompare visible
-  () => {
+  async () => {
     setSceneText(1);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_night", { animate: false });
-    mapController.setTempUnit("C");
+    if (currentCity !== "london") {
+      await mapController.setCity("london");
+      currentCity = "london";
+    }
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -444,17 +452,21 @@ const scenes = [
       "lst_night"
     );
 
+    mapController.setLayer("lst_night", { animate: true });
+
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(false); 
   },
 
   // 2: Day vs night heat (still London)
-  () => {
+  async () => {
     setSceneText(2);
     mapController.setBivariate(false);
-    mapController.setCity("london");
-    mapController.setLayer("lst_day", { animate: true });
-    mapController.setTempUnit("C");
+    if (currentCity !== "london") {
+      await mapController.setCity("london");
+      currentCity = "london";
+    }
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -472,15 +484,21 @@ const scenes = [
       "lst_day"
     );
 
+    mapController.setLayer("lst_day", { animate: true });
+
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true); 
   },
 
   // 3: NDVI + correlation – London
-  () => {
+  async () => {
     setSceneText(3);
     mapController.setBivariate(false);
-    mapController.setCity("london");
+    if (currentCity !== "london") {
+      await mapController.setCity("london");
+      currentCity = "london";
+    }
     mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 correlation panel becomes relevant here
@@ -503,15 +521,18 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 4: Across-city, daytime LST
-  () => {
+  async () => {
     setSceneText(4);
     mapController.setBivariate(false);
-    mapController.setCity("tokyo");
-    mapController.setLayer("lst_day", { animate: true });
-    mapController.setTempUnit("C");
+    if (currentCity !== "tokyo") {
+      await mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
+    mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -524,19 +545,20 @@ const scenes = [
 
     setLayerControls(
       [
+        { id: "ndvi",      label: "Vegetation" },
         { id: "lst_day",   label: "Daytime Temp." },
-        { id: "lst_night", label: "Nighttime Temp." },
-        { id: "ndvi",      label: "Vegetation" }
+        { id: "lst_night", label: "Nighttime Temp." }
       ],
-      "lst_day"
+      "ndvi"
     );
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
   // 5: Land cover
-  () => {
+  async () => {
     setSceneText(5);
     mapController.setBivariate(false);
     mapController.setCity("tokyo");
@@ -566,9 +588,13 @@ const scenes = [
   },
 
   // 6: What-if greenness simulator – NDVI, painting on
-  () => {
+  async () => {
     setSceneText(6);
     mapController.setBivariate(false);
+    if (currentCity !== "tokyo") {
+      await mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
     mapController.setLayer("ndvi", { animate: true });
 
     // 🔑 enable NDVI brush + sim summary
@@ -591,12 +617,19 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
-  // 7: Inter-neighborhood across cities
-  () => {
+  // 6: Inter-neighborhood across cities
+  async () => {
     setSceneText(7);
-    mapController.setBivariate(false);
+    await mapController.setBivariate(false); // Wait for bivariate→univariate switch to complete
+    if (currentCity !== "tokyo") {
+      await mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
+
+    // Immediately set the layer after turning off bivariate
     mapController.setLayer("lst_day", { animate: true });
 
     mapController.setControlsVisibility({
@@ -617,13 +650,17 @@ const scenes = [
 
     showWardCompare(true);
     showCityCompare(false);
+    showUhiCompare(true);
   },
 
-  // 8: Final bivariate view + inter-city chart
-  () => {
+  // 7: Final bivariate view + inter-city chart
+  async () => {
     setSceneText(8);
-    mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
-    mapController.setTempUnit("C");
+    if (currentCity !== "tokyo") {
+      await mapController.setCity("tokyo");
+      currentCity = "tokyo";
+    }
+    await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -637,6 +674,7 @@ const scenes = [
 
     showWardCompare(false);
     showCityCompare(true);
+    showUhiCompare(true);
   }
 ];
 
@@ -652,10 +690,20 @@ function initScroller() {
       offset: 0.6,
       debug: false
     })
-    .onStepEnter(response => {
+    .onStepEnter(async response => {
       const idx = Number(response.element.dataset.scene);
+      const direction = response.direction; // 'up' or 'down'
+      
+      // Update scene number before triggering the scene
+      if (mapController) {
+        mapController.setSceneNumber(idx);
+      }
+      
+      // When scrolling down, show the scene we're entering
+      // When scrolling up, show the scene we're entering (going back to)
+      // Both are the same - just trigger the scene for the step we're entering
       const fn = scenes[idx];
-      if (fn && mapController) fn();
+      if (fn && mapController) await fn();
     });
 
   window.addEventListener("resize", () => scroller.resize());
@@ -665,18 +713,95 @@ function initScroller() {
 // Boot
 // ------------------------------------
 (async function main() {
+  // Determine which scene is currently in view based on scroll position BEFORE initializing the map
+  const steps = document.querySelectorAll("#scrollTriggers .step");
+  const viewportHeight = window.innerHeight;
+  const triggerPoint = viewportHeight * 0.6; // Match scrollama offset
+  
+  let activeSceneIndex = 0;
+  
+  // Find which step is currently at or past the trigger point
+  steps.forEach((step, index) => {
+    const rect = step.getBoundingClientRect();
+    if (rect.top <= triggerPoint) {
+      activeSceneIndex = index;
+    }
+  });
+
+  // Initialize the map
   await initMainMap();
+  
+  // Expose mapController globally for other panels (UHI, intercity) to access temperature methods
+  window.mapController = mapController;
+  
+  // Set initial scene number before applying the scene
+  mapController.setSceneNumber(activeSceneIndex);
+  
+  // Set initial temperature unit (will persist across scenes unless user changes it)
+  mapController.setTempUnit("C");
+  
   initFloatingPanels();
   initScroller();
-
-  // Initial scene state (top of page)
-  scenes[0] && scenes[0]();
+  
+  // Apply the active scene's state immediately after map initialization
+  // Force animate: false for initial load by temporarily overriding setLayer
+  if (scenes[activeSceneIndex]) {
+    // Store the original setLayer
+    const originalSetLayer = mapController.setLayer;
+    
+    // Temporarily override to force animate: false on initial load
+    mapController.setLayer = function(id, options = {}) {
+      return originalSetLayer.call(this, id, { ...options, animate: false });
+    };
+    
+    // Call the scene and wait for it to complete (especially important for async operations like setBivariate)
+    await scenes[activeSceneIndex]();
+    
+    // Restore the original setLayer
+    mapController.setLayer = originalSetLayer;
+  }
 
   // Global reset: reload to restore brushes, scenes, panel positions, etc.
   const resetBtn = document.getElementById("mapResetButton");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
       window.location.reload();
+    });
+  }
+
+  // Add hover behavior to overlayText to allow tooltip interaction
+  const overlayText = document.getElementById("overlayText");
+  if (overlayText) {
+    let checkInterval = null;
+    
+    overlayText.addEventListener("mouseenter", () => {
+      // Fade out and disable pointer events
+      overlayText.style.opacity = "0";
+      overlayText.style.pointerEvents = "none";
+      
+      // Start checking mouse position
+      checkInterval = setInterval(() => {
+        const rect = overlayText.getBoundingClientRect();
+        const mouseX = window.event?.clientX || 0;
+        const mouseY = window.event?.clientY || 0;
+        
+        // Check if mouse is outside the box
+        const isOutside = mouseX < rect.left || mouseX > rect.right || 
+                         mouseY < rect.top || mouseY > rect.bottom;
+        
+        if (isOutside) {
+          // Fade back in and restore pointer events
+          overlayText.style.opacity = "1";
+          overlayText.style.pointerEvents = "auto";
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      }, 50); // Check every 50ms
+    });
+    
+    // Track mouse position globally for the interval check
+    document.addEventListener("mousemove", (e) => {
+      window.event = e;
     });
   }
 })();

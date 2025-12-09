@@ -360,13 +360,15 @@ async function createCityGridMap(config) {
 
     enableNdviPainting = false,
     enablelc = false
+    initialTempUnit = "C",  // Initial temperature unit preference
+    onTempUnitChange = null  // Callback when user changes temp unit
   } = config;
 
   let activeLayer = null;
 
   // Temperature unit for display only ("C" or "F")
-  let tempUnit = "C";
   let lcUnit = enablelc;
+  let tempUnit = initialTempUnit;
 
   function toDisplayTemp(cVal) {
     if (cVal == null || !Number.isFinite(cVal)) return null;
@@ -1200,6 +1202,7 @@ async function createCityGridMap(config) {
       .style("font-size", "11px")
       .style("max-width", "260px")
       .style("line-height", "1.3")
+      .style("z-index", "1000")
       .style("display", "none");
 
     brushControls.append("div")
@@ -1289,11 +1292,9 @@ async function createCityGridMap(config) {
     legendLeft = Math.max(idealLeft, minLeft);
     legendTransform = "translate(-50%, -50%)";
   } else {
-    // For univariate: 10px left of map, but ensure it fits
-    const idealLeft = xOffset - 10;
-    const minLeft = legendWidth + 10; // Ensure full width visible with 10px padding
-    legendLeft = Math.max(idealLeft, minLeft);
-    legendTransform = "translate(-100%, -50%)";
+    // For univariate: left-aligned with 10px padding from container edge
+    legendLeft = 10;
+    legendTransform = "translate(0%, -50%)";
   }
 
   // Create a container div for the legend that can be rebuilt as needed
@@ -1356,6 +1357,10 @@ async function createCityGridMap(config) {
     updateUnitButtons();
     updateLayer(false);   // refresh legend labels
     updateSimSummary();   // refresh summary units
+    // Notify parent controller to update global preference
+    if (onTempUnitChange) onTempUnitChange("C");
+    // Dispatch event for other panels to listen
+    document.dispatchEvent(new CustomEvent("tempUnitChanged", { detail: { unit: "C" } }));
   });
 
   fBtn.on("click", () => {
@@ -1364,6 +1369,10 @@ async function createCityGridMap(config) {
     updateUnitButtons();
     updateLayer(false);
     updateSimSummary();
+    // Notify parent controller to update global preference
+    if (onTempUnitChange) onTempUnitChange("F");
+    // Dispatch event for other panels to listen
+    document.dispatchEvent(new CustomEvent("tempUnitChanged", { detail: { unit: "F" } }));
   });
 
   updateUnitButtons();
@@ -1766,7 +1775,7 @@ async function createCityGridMap(config) {
       const bivariateColor = createBivariateColorScale(bivariatePalette1, bivariatePalette2);
     
       const sel = animate
-        ? rects.transition().duration(350)
+        ? rects.transition().duration(800)
         : rects;
       
       sel.attr("fill", d => {
@@ -2015,7 +2024,7 @@ async function createCityGridMap(config) {
     const isLandCover = activeLayer.id === "lc" || activeLayer.label === "Land Cover Type (grouped)";
 
     const sel = animate
-      ? rects.transition().duration(350)
+      ? rects.transition().duration(800)
       : rects;
 
     sel
@@ -2129,13 +2138,22 @@ async function createCityGridMap(config) {
       const legendHeight = 210;
       const textWidth = 50;
 
+      // Dynamic legend title that updates with temperature unit
+      const isTempLayer = activeLayer.id === "lst_day" || activeLayer.id === "lst_night";
+      let legendTitleText = activeLayer.label;
+      
+      if (isTempLayer) {
+        // Replace the temperature unit in the label with the current unit
+        legendTitleText = activeLayer.label.replace(/\(°C\)|\(°F\)/g, `(${tempSuffix()})`);
+      }
+
       const legendTitle = legendContainer.append("div")
         .style("font-size", "11px")
         .style("font-weight", "bold")
         .style("margin-bottom", "4px")
         .style("color", "#333")
         .style("text-align", "center")
-        .text(activeLayer.label);
+        .text(legendTitleText);
 
       const legendSvg = legendContainer.append("svg")
         .attr("width", textWidth + legendWidth + 5)
@@ -2594,7 +2612,8 @@ export async function createMultiCityGridMap(config) {
     .attr("id", innerId)
     .style("position", "relative")
     .style("width", "100%")
-    .style("height", height + "px");
+    .style("height", height + "px")
+    .style("overflow", "hidden");
 
   // City image + captions you were updating before
   const cityImages = {
@@ -2614,9 +2633,13 @@ export async function createMultiCityGridMap(config) {
   };
 
   let currentCityId = defaultCityId || cityConfigs[0].id;
+  let previousCityId = null;
   let currentCityController = null;
+  let currentSceneNumber = 0;
+  let previousSceneNumber = -1;
   let bivariateMode = !!bivariate;
   let currentBivariateVars = bivariateVars || null;
+  let currentTempUnit = "C"; // Track temperature unit preference globally
 
   const cityButtons = cityToggleControls.selectAll("button")
     .data(cityConfigs, d => d.id)
@@ -2637,6 +2660,62 @@ export async function createMultiCityGridMap(config) {
   async function renderCurrentCity(enablelc = false) {
     const cityConf = cityConfigs.find(c => c.id === currentCityId);
     if (!cityConf) return;
+
+    // Determine animation direction based on scene number
+    const isScrollingUp = previousSceneNumber > currentSceneNumber;
+
+    const innerContainer = d3.select(innerSelector);
+    const containerNode = innerContainer.node();
+    const containerWidth = containerNode.clientWidth;
+    const containerHeight = containerNode.clientHeight;
+    
+    // Get the body background color
+    const bodyBgColor = window.getComputedStyle(document.body).backgroundColor;
+    
+    // Create LEGO brick parameters
+    const brickWidth = 60;
+    const brickHeight = 40;
+    const cols = Math.ceil(containerWidth / brickWidth);
+    const rows = Math.ceil(containerHeight / brickHeight);
+    
+    // Create brick data
+    const bricks = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        bricks.push({
+          x: col * brickWidth,
+          y: row * brickHeight,
+          width: brickWidth,
+          height: brickHeight,
+          delay: row * 10, // Delay based on row
+          row: row // Store row for reverse animation
+        });
+      }
+    }
+    
+    // Create overlay SVG with rectangles already visible (no initial animation)
+    const brickOverlay = innerContainer.append("svg")
+      .style("position", "absolute")
+      .style("top", "0")
+      .style("left", "0")
+      .style("width", "100%")
+      .style("height", "100%")
+      .style("pointer-events", "none")
+      .style("z-index", "10000")
+      .attr("width", containerWidth)
+      .attr("height", containerHeight);
+    
+    // Add rectangles that will cover the image (start at full opacity)
+    const brickRects = brickOverlay.selectAll("rect")
+      .data(bricks)
+      .enter()
+      .append("rect")
+      .attr("x", d => d.x)
+      .attr("y", d => d.y)
+      .attr("width", d => d.width)
+      .attr("height", d => d.height)
+      .attr("fill", bodyBgColor)
+      .attr("opacity", 1);  // Start visible, no animation
 
     // Tear down old city map
     if (currentCityController) {
@@ -2673,9 +2752,75 @@ export async function createMultiCityGridMap(config) {
       bivariateVars: currentBivariateVars,
       enableNdviPainting: enableNdviPainting && (cityConf.enableNdviPainting ?? true),
       enablelc: enablelc
+      initialTempUnit: currentTempUnit,  // Pass the global temperature preference
+      onTempUnitChange: (unit) => {
+        // Update global preference when user clicks temp unit button
+        currentTempUnit = unit;
+      }
     });
 
     updateCityButtonStyles();
+    
+    // Temperature unit is already set via initialTempUnit parameter
+    // No need to call setTempUnit again
+    
+    // Re-create the overlay SVG to ensure it's on top of the new map
+    brickOverlay.remove();
+    const newBrickOverlay = innerContainer.append("svg")
+      .style("position", "absolute")
+      .style("top", "0")
+      .style("left", "0")
+      .style("width", "100%")
+      .style("height", "100%")
+      .style("pointer-events", "none")
+      .style("z-index", "10000")
+      .attr("width", containerWidth)
+      .attr("height", containerHeight);
+    
+    // Re-create the rectangles at full opacity
+    const newBrickRects = newBrickOverlay.selectAll("rect")
+      .data(bricks)
+      .enter()
+      .append("rect")
+      .attr("x", d => d.x)
+      .attr("y", d => d.y)
+      .attr("width", d => d.width)
+      .attr("height", d => d.height)
+      .attr("fill", bodyBgColor)
+      .attr("opacity", 1);
+    
+    // Now remove the bricks from top to bottom OR bottom to top based on direction
+    if (isScrollingUp) {
+      // Bottom to top: start with the last row
+      for (let row = rows - 1; row >= 0; row--) {
+        setTimeout(() => {
+          newBrickRects.filter(d => d.row === row)
+            .transition()
+            .duration(8.75)
+            .attr("opacity", 0);
+        }, (rows - 1 - row) * 12.5);
+      }
+    } else {
+      // Top to bottom: start with the first row
+      for (let row = 0; row < rows; row++) {
+        setTimeout(() => {
+          newBrickRects.filter(d => d.row === row)
+            .transition()
+            .duration(8.75)
+            .attr("opacity", 0);
+        }, row * 12.5);
+      }
+    }
+    
+    // Update previous city ID and scene number for next transition
+    previousCityId = currentCityId;
+    previousSceneNumber = currentSceneNumber;
+
+    // Wait for all bricks to disappear, then remove overlay
+    await new Promise(resolve => setTimeout(resolve, bricks[bricks.length - 1].delay + 50));
+    newBrickOverlay.remove();
+    brickOverlay.remove();
+    
     return currentCityController;
   }
 
@@ -2692,6 +2837,13 @@ export async function createMultiCityGridMap(config) {
   // Return high-level controller for scrolly to drive
   // -------------------------------------------------------
   const mapController = {
+    /**
+     * Set current scene number (for animation direction tracking).
+     */
+    setSceneNumber(sceneNum) {
+      currentSceneNumber = sceneNum;
+    },
+
     /**
      * Switch active city (Tokyo, London, etc.).
      */
@@ -2735,8 +2887,31 @@ export async function createMultiCityGridMap(config) {
      * Set temp unit (delegates to city controller).
      */
     setTempUnit(unit) {
+      currentTempUnit = unit; // Save preference globally
       if (!currentCityController) return;
       currentCityController.setTempUnit(unit);
+    },
+
+    /**
+     * Get current temperature unit preference.
+     */
+    getTempUnit() {
+      return currentTempUnit;
+    },
+
+    /**
+     * Convert Celsius to display temperature based on current unit.
+     */
+    toDisplayTemp(cVal) {
+      if (cVal == null || !Number.isFinite(cVal)) return null;
+      return currentTempUnit === "C" ? cVal : (cVal * 9 / 5 + 32);
+    },
+
+    /**
+     * Get temperature suffix for current unit.
+     */
+    tempSuffix() {
+      return currentTempUnit === "C" ? "°C" : "°F";
     },
 
     /**
