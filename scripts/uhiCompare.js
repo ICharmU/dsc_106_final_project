@@ -234,8 +234,11 @@ function updateUhiChart() {
     if (Number.isFinite(d.meanNight)) allVals.push(d.meanNight);
   });
 
+  // Convert temperatures to display unit
+  const displayVals = allVals.map(v => window.mapController ? window.mapController.toDisplayTemp(v) : v);
+  
   const y = d3.scaleLinear()
-    .domain(d3.extent(allVals)).nice()
+    .domain(d3.extent(displayVals)).nice()
     .range([innerH, 0]);
 
   const color = d3.scaleOrdinal()
@@ -254,6 +257,17 @@ function updateUhiChart() {
     .selectAll("text")
     .style("font-size", 11);
 
+  // Y-axis label with temperature unit
+  const tempUnit = window.mapController ? window.mapController.tempSuffix() : "°C";
+  g.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("y", 0 - margin.left + 10)
+    .attr("x", 0 - (innerH / 2))
+    .attr("dy", "1em")
+    .style("text-anchor", "middle")
+    .style("font-size", "11px")
+    .text(`Temperature ${tempUnit}`);
+
   // Bars
   const groupG = g.selectAll(".uhi-group")
     .data(groups, d => d.key)
@@ -270,12 +284,25 @@ function updateUhiChart() {
   series.forEach(s => {
     groupG.append("rect")
       .attr("x", d => x1(s.label))
-      .attr("y", d => y(s.accessor(d)))
+      .attr("y", d => {
+        const val = s.accessor(d);
+        const displayVal = window.mapController ? window.mapController.toDisplayTemp(val) : val;
+        return y(displayVal);
+      })
       .attr("width", x1.bandwidth())
-      .attr("height", d => innerH - y(s.accessor(d)))
+      .attr("height", d => {
+        const val = s.accessor(d);
+        const displayVal = window.mapController ? window.mapController.toDisplayTemp(val) : val;
+        return innerH - y(displayVal);
+      })
       .attr("fill", color(s.label))
       .append("title")
-      .text(d => `${s.label}: ${s.accessor(d).toFixed(2)} °C`);
+      .text(d => {
+        const val = s.accessor(d);
+        const displayVal = window.mapController ? window.mapController.toDisplayTemp(val) : val;
+        const suffix = window.mapController ? window.mapController.tempSuffix() : "°C";
+        return `${s.label}: ${displayVal.toFixed(2)} ${suffix}`;
+      });
   });
 
   // Legend
@@ -306,13 +333,14 @@ function updateUhiChart() {
     .attr("font-size", 11)
     .text("Neighborhood type (by dominant land cover)");
 
+  const axisTempUnit = window.mapController ? window.mapController.tempSuffix() : "°C";
   g.append("text")
     .attr("transform", "rotate(-90)")
     .attr("x", -innerH / 2)
     .attr("y", -36)
     .attr("text-anchor", "middle")
     .attr("font-size", 11)
-    .text("Average land surface temperature (°C)");
+    .text(`Average land surface temperature ${axisTempUnit}`);
 
   // Simple UHI summary: Urban – Non-urban, day & night (if both exist)
   const urban = groups.find(g => g.key === "Urban (built-up)");
@@ -322,10 +350,15 @@ function updateUhiChart() {
     const dayDiff = (urban.meanDay - nonUrban.meanDay);
     const nightDiff = (urban.meanNight - nonUrban.meanNight);
 
+    // Convert differences to display temperature
+    const dayDiffDisplay = window.mapController ? window.mapController.toDisplayTemp(urban.meanDay) - window.mapController.toDisplayTemp(nonUrban.meanDay) : dayDiff;
+    const nightDiffDisplay = window.mapController ? window.mapController.toDisplayTemp(urban.meanNight) - window.mapController.toDisplayTemp(nonUrban.meanNight) : nightDiff;
+    const summaryTempUnit = window.mapController ? window.mapController.tempSuffix() : "°C";
+
     summary.html(
       `<strong>UHI signal:</strong> ` +
-      `Day: ${(dayDiff >= 0 ? "+" : "") + dayDiff.toFixed(2)} °C; ` +
-      `Night: ${(nightDiff >= 0 ? "+" : "") + nightDiff.toFixed(2)} °C ` +
+      `Day: ${(dayDiffDisplay >= 0 ? "+" : "") + dayDiffDisplay.toFixed(2)} ${summaryTempUnit}; ` +
+      `Night: ${(nightDiffDisplay >= 0 ? "+" : "") + nightDiffDisplay.toFixed(2)} ${summaryTempUnit} ` +
       `(Urban minus non-urban wards)`
     );
   } else {
@@ -380,6 +413,14 @@ function updateUhiChart() {
         if (cityId === uhiActiveCityId) {
         updateUhiChart();
         }
+    }
+  });
+
+  // Listen for temperature unit changes
+  document.addEventListener("tempUnitChanged", (evt) => {
+    // Refresh the chart when temperature unit changes
+    if (uhiActiveCityId && uhiStatsByCity.get(uhiActiveCityId)) {
+      updateUhiChart();
     }
   });
 
