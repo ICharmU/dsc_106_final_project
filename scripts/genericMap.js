@@ -1117,6 +1117,7 @@ async function createCityGridMap(config) {
       .style("font-size", "11px")
       .style("max-width", "260px")
       .style("line-height", "1.3")
+      .style("z-index", "1000")
       .style("display", "none");
 
     brushControls.append("div")

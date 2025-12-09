@@ -568,8 +568,8 @@ const scenes = [
       showCityToggle: true,
       showUnitToggle: true,
       showCorrPanel: true,
-      showBrushControls: false,
-      showSimSummary: false
+      showBrushControls: true,
+      showSimSummary: true
     });
 
     setLayerControls(
