@@ -411,6 +411,7 @@ const scenes = [
       currentCity = "london";
     }
     mapController.setLayer("lst_night", { animate: false });
+    await mapController.setlcBorder(false);
 
     // 🔑 Only temp-unit pill, nothing else yet
     mapController.setControlsVisibility({
@@ -435,6 +436,7 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
+    await mapController.setlcBorder(false);
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -467,6 +469,7 @@ const scenes = [
       await mapController.setCity("london");
       currentCity = "london";
     }
+    await mapController.setlcBorder(false);
 
     mapController.setControlsVisibility({
       showCityToggle: false,
@@ -500,6 +503,7 @@ const scenes = [
       currentCity = "london";
     }
     mapController.setLayer("ndvi", { animate: true });
+    await mapController.setlcBorder(false);
 
     // 🔑 correlation panel becomes relevant here
     mapController.setControlsVisibility({
@@ -533,6 +537,7 @@ const scenes = [
       currentCity = "tokyo";
     }
     mapController.setLayer("ndvi", { animate: true });
+    await mapController.setlcBorder(false);
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -564,6 +569,7 @@ const scenes = [
     mapController.setCity("tokyo");
     mapController.setLayer("lc", { animate: true });
     mapController.setTempUnit("C");
+    await mapController.setlcBorder(false);
 
     // 🔑 now city toggle row makes sense
     mapController.setControlsVisibility({
@@ -596,6 +602,7 @@ const scenes = [
       currentCity = "tokyo";
     }
     mapController.setLayer("ndvi", { animate: true });
+    await mapController.setlcBorder(false);
 
     // 🔑 enable NDVI brush + sim summary
     mapController.setControlsVisibility({
@@ -631,6 +638,7 @@ const scenes = [
 
     // Immediately set the layer after turning off bivariate
     mapController.setLayer("lst_day", { animate: true });
+    await mapController.setlcBorder(true);
 
     mapController.setControlsVisibility({
       showCityToggle: true,
@@ -661,7 +669,6 @@ const scenes = [
       currentCity = "tokyo";
     }
     await mapController.setBivariate(true, { var1: "ndvi", var2: "lst_day" });
-    await mapController.setlcBorder();
 
     mapController.setControlsVisibility({
       showCityToggle: true,

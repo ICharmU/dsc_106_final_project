@@ -2879,8 +2879,8 @@ export async function createMultiCityGridMap(config) {
       }
     },
 
-    async setlcBorder() {
-        renderCurrentCity(true);
+    async setlcBorder(bool=false) {
+        renderCurrentCity(bool);
     },
 
     /**
